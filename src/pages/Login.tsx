@@ -61,7 +61,7 @@ export function Login() {
         <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
           {isCloudMode
             ? (isRegistering ? '创建云端账户' : '登录云端账户')
-            : hasAccounts ? '公考学习记录系统' : '初始化本地账户'}
+            : hasAccounts ? '学而录' : '初始化本地账户'}
         </h2>
         <p className="mt-2 text-center text-sm text-slate-600">
           {isCloudMode

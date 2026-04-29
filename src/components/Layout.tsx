@@ -25,6 +25,9 @@ const themes = [
   { id: 'tianqing', name: '天青黛蓝', color: '#519fc6' },
 ];
 
+const appName = '学而录';
+const appIconUrl = `${import.meta.env.BASE_URL}icon.svg`;
+
 export function Layout() {
   const { currentUser, logout } = useAppContext();
   const navigate = useNavigate();
@@ -62,8 +65,8 @@ export function Layout() {
       <aside className="hidden md:flex flex-col w-64 bg-white/80 backdrop-blur-md border-r border-slate-200/50">
         <div className="h-16 flex items-center px-6 border-b border-slate-200/50">
           <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs shadow-sm">GK</div>
-            <span>公考记录系统</span>
+            <img src={appIconUrl} alt="" className="w-8 h-8 rounded-lg shadow-sm" />
+            <span>{appName}</span>
           </div>
         </div>
         
@@ -150,8 +153,8 @@ export function Layout() {
         <header className="md:hidden h-[env(safe-area-inset-top,0px)] bg-white/90 backdrop-blur-md pt-[env(safe-area-inset-top,0px)]"></header>
         <header className="md:hidden h-14 bg-white/90 backdrop-blur-md border-b border-slate-200/50 flex items-center justify-center px-4 sticky top-0 z-30">
           <div className="flex items-center gap-2 text-indigo-600 font-bold text-lg">
-            <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-[10px] shadow-sm">GK</div>
-            <span>公考助手</span>
+            <img src={appIconUrl} alt="" className="w-7 h-7 rounded-lg shadow-sm" />
+            <span>{appName}</span>
           </div>
         </header>
 

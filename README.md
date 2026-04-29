@@ -1,4 +1,4 @@
-# 公考记录系统
+# 学而录
 
 公考学习、刷题、资料、总结与统计记录系统。项目使用 Vite + React + TypeScript 构建，并通过 GitHub Pages 发布为静态站点。
 

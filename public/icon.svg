@@ -1,4 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="100" fill="#337a7a"/>
-  <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="256" font-weight="bold" fill="white">GK</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="学而录">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="56" x2="432" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f7a72"/>
+      <stop offset="1" stop-color="#174f61"/>
+    </linearGradient>
+    <linearGradient id="page" x1="142" y1="150" x2="372" y2="350" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#e8f4ee"/>
+    </linearGradient>
+    <filter id="shadow" x="92" y="98" width="328" height="300" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#083342" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M140 120h232a36 36 0 0 1 36 36v204a36 36 0 0 1-36 36H140a36 36 0 0 1-36-36V156a36 36 0 0 1 36-36Z" fill="#0f3f4f" opacity=".22"/>
+  <g filter="url(#shadow)">
+    <path d="M130 150c0-20 16-36 36-36h72c26 0 47 11 60 30v210c-13-19-34-30-60-30h-72c-20 0-36-16-36-36V150Z" fill="url(#page)"/>
+    <path d="M382 150c0-20-16-36-36-36h-72c-26 0-47 11-60 30v210c13-19 34-30 60-30h72c20 0 36-16 36-36V150Z" fill="url(#page)"/>
+    <path d="M256 142v210" stroke="#62aaa0" stroke-width="10" stroke-linecap="round"/>
+    <path d="M166 180h56M166 220h64M166 260h48" stroke="#2c6f70" stroke-width="14" stroke-linecap="round" opacity=".55"/>
+    <path d="M302 180h44M292 220h58M292 260h42" stroke="#2c6f70" stroke-width="14" stroke-linecap="round" opacity=".55"/>
+  </g>
+  <path d="M316 314 382 248l36 36-66 66-46 10 10-46Z" fill="#f6c84f"/>
+  <path d="m382 248 18-18c8-8 21-8 29 0l7 7c8 8 8 21 0 29l-18 18-36-36Z" fill="#f4efe4"/>
+  <path d="m306 360 46-10-36-36-10 46Z" fill="#15485b"/>
+  <path d="M386 98 398 126 428 130 405 150 412 180 386 164 360 180 367 150 344 130 374 126 386 98Z" fill="#f6c84f"/>
 </svg>

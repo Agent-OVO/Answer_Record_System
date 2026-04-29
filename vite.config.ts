@@ -16,9 +16,9 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         manifest: {
-          name: '公考记录系统',
-          short_name: '公考助手',
-          description: '公考学习与记录整理助手',
+          name: '学而录',
+          short_name: '学而录',
+          description: '公考学习记录与复盘助手',
           theme_color: '#faf9f6',
           background_color: '#faf9f6',
           display: 'standalone',
