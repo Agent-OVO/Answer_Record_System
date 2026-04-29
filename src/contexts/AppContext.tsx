@@ -5,8 +5,13 @@ import { differenceInDays } from 'date-fns';
 
 interface AppContextType {
   currentUser: User | null;
-  login: (username: string, remember: boolean) => boolean;
+  accounts: AccountSummary[];
+  hasAccounts: boolean;
+  login: (username: string, password: string, remember: boolean) => Promise<boolean>;
   logout: () => void;
+  createAccount: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  updatePassword: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  deleteAccount: (username: string) => { success: boolean; message?: string };
   
   exercises: ExerciseRecord[];
   materials: MaterialRecord[];
@@ -30,21 +35,109 @@ interface AppContextType {
   importData: (exercises: ExerciseRecord[], materials: MaterialRecord[], summaries: DailySummary[], mode: 'append' | 'overwrite') => void;
 }
 
-const mockUsers = [
-  { username: 'admin', password: '123' },
-  { username: 'test', password: '123' },
-];
+type LocalAccount = {
+  username: string;
+  passwordHash: string;
+  salt: string;
+  createdAt: number;
+};
+
+type AccountSummary = {
+  username: string;
+  createdAt: number;
+};
+
+const ACCOUNTS_STORAGE_KEY = 'answerRecordSystem.accounts';
+const CURRENT_USER_STORAGE_KEY = 'currentUser';
+const HASH_ITERATIONS = 120000;
+
+const readJson = <T,>(storage: Storage, key: string): T | null => {
+  try {
+    const value = storage.getItem(key);
+    return value ? JSON.parse(value) as T : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeAccounts = (accounts: LocalAccount[]) => {
+  localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+};
+
+const getLocalAccounts = () => {
+  const savedAccounts = readJson<LocalAccount[]>(localStorage, ACCOUNTS_STORAGE_KEY);
+  if (!Array.isArray(savedAccounts)) return [];
+
+  return savedAccounts.filter(account =>
+    typeof account.username === 'string'
+    && typeof account.passwordHash === 'string'
+    && typeof account.salt === 'string'
+    && typeof account.createdAt === 'number'
+  );
+};
+
+const getAccountSummaries = () => {
+  return getLocalAccounts().map(({ username, createdAt }) => ({ username, createdAt }));
+};
+
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let binary = '';
+  bytes.forEach(byte => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+};
+
+const createSalt = () => {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return bytesToBase64(bytes);
+};
+
+const hashPassword = async (password: string, salt: string) => {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: encoder.encode(salt),
+      iterations: HASH_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256
+  );
+
+  return bytesToBase64(new Uint8Array(bits));
+};
+
+const getStoredCurrentUser = () => {
+  const accounts = getLocalAccounts();
+  const isKnownUser = (user: User | null): user is User =>
+    Boolean(user && accounts.some(account => account.username === user.username));
+
+  const saved = readJson<User>(localStorage, CURRENT_USER_STORAGE_KEY);
+  if (isKnownUser(saved)) return saved;
+  localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+
+  const sessionSaved = readJson<User>(sessionStorage, CURRENT_USER_STORAGE_KEY);
+  if (isKnownUser(sessionSaved)) return sessionSaved;
+  sessionStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+
+  return null;
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('currentUser');
-    if (saved) return JSON.parse(saved);
-    const sessionSaved = sessionStorage.getItem('currentUser');
-    if (sessionSaved) return JSON.parse(sessionSaved);
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(getStoredCurrentUser);
+  const [accounts, setAccounts] = useState<AccountSummary[]>(getAccountSummaries);
 
   const [exercises, setExercises] = useState<ExerciseRecord[]>(() => JSON.parse(localStorage.getItem('exercises') || '[]'));
   const [materials, setMaterials] = useState<MaterialRecord[]>(() => JSON.parse(localStorage.getItem('materials') || '[]'));
@@ -65,25 +158,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { localStorage.setItem('materials', JSON.stringify(materials)); }, [materials]);
   useEffect(() => { localStorage.setItem('summaries', JSON.stringify(summaries)); }, [summaries]);
 
-  const login = (username: string, remember: boolean) => {
-    const userFound = mockUsers.find(u => u.username === username);
-    if (userFound) {
-      const userObj = { id: username, username };
+  const login = async (username: string, password: string, remember: boolean) => {
+    const normalizedUsername = username.trim();
+    const account = getLocalAccounts().find(localAccount => localAccount.username === normalizedUsername);
+
+    if (account && await hashPassword(password, account.salt) === account.passwordHash) {
+      const userObj = { id: account.username, username: account.username };
       setCurrentUser(userObj);
       if (remember) {
-        localStorage.setItem('currentUser', JSON.stringify(userObj));
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userObj));
+        sessionStorage.removeItem(CURRENT_USER_STORAGE_KEY);
       } else {
-        sessionStorage.setItem('currentUser', JSON.stringify(userObj));
+        sessionStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userObj));
+        localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
       }
       return true;
     }
     return false;
   };
 
+  const createAccount = async (username: string, password: string) => {
+    const normalizedUsername = username.trim();
+    if (!normalizedUsername) return { success: false, message: '请输入账号名' };
+    if (password.length < 6) return { success: false, message: '密码至少需要 6 位' };
+
+    const currentAccounts = getLocalAccounts();
+    if (currentAccounts.some(account => account.username === normalizedUsername)) {
+      return { success: false, message: '账号已存在' };
+    }
+
+    const salt = createSalt();
+    const nextAccounts = [
+      ...currentAccounts,
+      {
+        username: normalizedUsername,
+        passwordHash: await hashPassword(password, salt),
+        salt,
+        createdAt: Date.now(),
+      },
+    ];
+    writeAccounts(nextAccounts);
+    setAccounts(getAccountSummaries());
+    return { success: true };
+  };
+
+  const updatePassword = async (username: string, password: string) => {
+    if (password.length < 6) return { success: false, message: '密码至少需要 6 位' };
+
+    const currentAccounts = getLocalAccounts();
+    const account = currentAccounts.find(item => item.username === username);
+    if (!account) return { success: false, message: '账号不存在' };
+
+    const salt = createSalt();
+    const passwordHash = await hashPassword(password, salt);
+    writeAccounts(currentAccounts.map(item => item.username === username
+      ? { ...item, salt, passwordHash }
+      : item
+    ));
+    return { success: true };
+  };
+
+  const deleteAccount = (username: string) => {
+    const currentAccounts = getLocalAccounts();
+    if (currentAccounts.length <= 1) {
+      return { success: false, message: '至少需要保留一个账号' };
+    }
+    if (currentUser?.username === username) {
+      return { success: false, message: '不能删除当前登录账号' };
+    }
+
+    writeAccounts(currentAccounts.filter(account => account.username !== username));
+    setAccounts(getAccountSummaries());
+    return { success: true };
+  };
+
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    sessionStorage.removeItem('currentUser');
+    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+    sessionStorage.removeItem(CURRENT_USER_STORAGE_KEY);
   };
 
   const addExercise = (data: any) => {
@@ -151,7 +303,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      currentUser, login, logout,
+      currentUser, accounts, hasAccounts: accounts.length > 0, login, logout, createAccount, updatePassword, deleteAccount,
       exercises, materials, summaries,
       addExercise, updateExercise, deleteExercise,
       addMaterial, updateMaterial, deleteMaterial,

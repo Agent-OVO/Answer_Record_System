@@ -10,6 +10,7 @@ import { Summaries } from './pages/Summaries';
 import { Statistics } from './pages/Statistics';
 import { DataSync } from './pages/DataSync';
 import { Trash } from './pages/Trash';
+import { Accounts } from './pages/Accounts';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useAppContext();
@@ -28,6 +29,7 @@ const AppRoutes = () => {
         <Route path="summaries" element={<Summaries />} />
         <Route path="statistics" element={<Statistics />} />
         <Route path="sync" element={<DataSync />} />
+        <Route path="accounts" element={<Accounts />} />
         <Route path="trash" element={<Trash />} />
       </Route>
     </Routes>

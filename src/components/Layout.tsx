@@ -10,11 +10,11 @@ import {
   RefreshCcw, 
   Trash2,
   LogOut,
-  Menu,
   Palette,
   Check,
   User,
-  X
+  X,
+  UsersRound
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -50,6 +50,7 @@ export function Layout() {
     { to: "/summaries", icon: CalendarDays, label: "每日总结", shortLabel: "总结" },
     { to: "/statistics", icon: BarChart3, label: "统计分析" },
     { to: "/sync", icon: RefreshCcw, label: "数据同步" },
+    { to: "/accounts", icon: UsersRound, label: "账户管理" },
     { to: "/trash", icon: Trash2, label: "回收站" },
   ];
 
