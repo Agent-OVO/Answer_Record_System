@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+@theme {
+  --color-indigo-50: var(--theme-primary-50);
+  --color-indigo-100: var(--theme-primary-100);
+  --color-indigo-200: var(--theme-primary-200);
+  --color-indigo-300: var(--theme-primary-300);
+  --color-indigo-400: var(--theme-primary-400);
+  --color-indigo-500: var(--theme-primary-500);
+  --color-indigo-600: var(--theme-primary-600);
+  --color-indigo-700: var(--theme-primary-700);
+  --color-indigo-800: var(--theme-primary-800);
+  --color-indigo-900: var(--theme-primary-900);
+  --color-indigo-950: var(--theme-primary-950);
+
+  --color-slate-50: var(--theme-slate-50);
+  --color-slate-100: var(--theme-slate-100);
+  --color-slate-200: var(--theme-slate-200);
+  --color-slate-300: var(--theme-slate-300);
+  --color-slate-400: var(--theme-slate-400);
+  --color-slate-500: var(--theme-slate-500);
+  --color-slate-600: var(--theme-slate-600);
+  --color-slate-700: var(--theme-slate-700);
+  --color-slate-800: var(--theme-slate-800);
+  --color-slate-900: var(--theme-slate-900);
+  --color-slate-950: var(--theme-slate-950);
+}
+
+:root {
+  /* Default: 青绿 (Qinglu) */
+  --theme-primary-50: #f2f8f8;
+  --theme-primary-100: #dbeeee;
+  --theme-primary-200: #b8dede;
+  --theme-primary-300: #88c7c7;
+  --theme-primary-400: #5cb3b3;
+  --theme-primary-500: #3f9898;
+  --theme-primary-600: #337a7a;
+  --theme-primary-700: #2b6161;
+  --theme-primary-800: #254f4f;
+  --theme-primary-900: #214242;
+  --theme-primary-950: #112626;
+
+  --theme-slate-50: #faf9f6;
+  --theme-slate-100: #f2efeb;
+  --theme-slate-200: #e4dfd7;
+  --theme-slate-300: #cfc6bc;
+  --theme-slate-400: #b0a395;
+  --theme-slate-500: #938474;
+  --theme-slate-600: #78695b;
+  --theme-slate-700: #605349;
+  --theme-slate-800: #4f463f;
+  --theme-slate-900: #423b36;
+  --theme-slate-950: #241f1c;
+
+  --theme-bg-img: url("data:image/svg+xml,%3Csvg width='800' height='400' viewBox='0 0 800 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 400 L0 300 Q100 250 250 320 T600 280 Q700 300 800 250 L800 400 Z' fill='%23e4dfd7' fill-opacity='0.3'/%3E%3Cpath d='M0 400 L0 350 Q150 280 350 350 T800 320 L800 400 Z' fill='%23cfc6bc' fill-opacity='0.25'/%3E%3Cpath d='M0 400 L0 380 Q200 340 400 380 T800 360 L800 400 Z' fill='%23b0a395' fill-opacity='0.15'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="dansha"] {
+  --theme-primary-50: #fdf5f4;
+  --theme-primary-100: #fae4e4;
+  --theme-primary-200: #f5cdd0;
+  --theme-primary-300: #ebabaf;
+  --theme-primary-400: #df7c84;
+  --theme-primary-500: #d04d55;
+  --theme-primary-600: #b9373e;
+  --theme-primary-700: #9b282d;
+  --theme-primary-800: #812529;
+  --theme-primary-900: #6c2326;
+  --theme-primary-950: #3c1012;
+
+  --theme-slate-50: #fcfaf8;
+  --theme-slate-100: #f5f0ea;
+  --theme-slate-200: #e8ddd0;
+  --theme-slate-300: #d6c3b0;
+  --theme-slate-400: #bc9f87;
+  --theme-slate-500: #a78469;
+  --theme-slate-600: #936d54;
+  --theme-slate-700: #7b5946;
+  --theme-slate-800: #664b3c;
+  --theme-slate-900: #533e33;
+  --theme-slate-950: #2d2019;
+
+  --theme-bg-img: url("data:image/svg+xml,%3Csvg width='800' height='400' viewBox='0 0 800 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 400 L0 300 Q100 250 250 320 T600 280 Q700 300 800 250 L800 400 Z' fill='%23e8ddd0' fill-opacity='0.4'/%3E%3Cpath d='M0 400 L0 350 Q150 280 350 350 T800 320 L800 400 Z' fill='%23d6c3b0' fill-opacity='0.3'/%3E%3Cpath d='M0 400 L0 380 Q200 340 400 380 T800 360 L800 400 Z' fill='%23bc9f87' fill-opacity='0.2'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="shuimo"] {
+  --theme-primary-50: #f8f9fa;
+  --theme-primary-100: #f1f3f5;
+  --theme-primary-200: #e9ecef;
+  --theme-primary-300: #dee2e6;
+  --theme-primary-400: #ced4da;
+  --theme-primary-500: #888888;
+  --theme-primary-600: #495057;
+  --theme-primary-700: #343a40;
+  --theme-primary-800: #212529;
+  --theme-primary-900: #121416;
+  --theme-primary-950: #000000;
+
+  --theme-slate-50: #ffffff;
+  --theme-slate-100: #f8f9fa;
+  --theme-slate-200: #e9ecef;
+  --theme-slate-300: #dee2e6;
+  --theme-slate-400: #ced4da;
+  --theme-slate-500: #adb5bd;
+  --theme-slate-600: #6c757d;
+  --theme-slate-700: #495057;
+  --theme-slate-800: #343a40;
+  --theme-slate-900: #212529;
+  --theme-slate-950: #121416;
+
+  --theme-bg-img: url("data:image/svg+xml,%3Csvg width='800' height='400' viewBox='0 0 800 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 400 L0 300 Q100 250 250 320 T600 280 Q700 300 800 250 L800 400 Z' fill='%23e9ecef' fill-opacity='0.7'/%3E%3Cpath d='M0 400 L0 350 Q150 280 350 350 T800 320 L800 400 Z' fill='%23dee2e6' fill-opacity='0.5'/%3E%3Cpath d='M0 400 L0 380 Q200 340 400 380 T800 360 L800 400 Z' fill='%23ced4da' fill-opacity='0.3'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="tianqing"] {
+  --theme-primary-50: #f0f6fa;
+  --theme-primary-100: #daeaf3;
+  --theme-primary-200: #b9d8e8;
+  --theme-primary-300: #88bdd9;
+  --theme-primary-400: #519fc6;
+  --theme-primary-500: #3484ae;
+  --theme-primary-600: #26698f;
+  --theme-primary-700: #215575;
+  --theme-primary-800: #1e4762;
+  --theme-primary-900: #1c3c52;
+  --theme-primary-950: #122636;
+
+  --theme-slate-50: #f4f6f8;
+  --theme-slate-100: #e6ebf0;
+  --theme-slate-200: #d0d8e2;
+  --theme-slate-300: #b1c0ce;
+  --theme-slate-400: #8da1b5;
+  --theme-slate-500: #71869c;
+  --theme-slate-600: #586b80;
+  --theme-slate-700: #475668;
+  --theme-slate-800: #3d4957;
+  --theme-slate-900: #353f4a;
+  --theme-slate-950: #222932;
+
+  --theme-bg-img: url("data:image/svg+xml,%3Csvg width='800' height='400' viewBox='0 0 800 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 400 L0 300 Q100 250 250 320 T600 280 Q700 300 800 250 L800 400 Z' fill='%23d0d8e2' fill-opacity='0.6'/%3E%3Cpath d='M0 400 L0 350 Q150 280 350 350 T800 320 L800 400 Z' fill='%23b1c0ce' fill-opacity='0.4'/%3E%3Cpath d='M0 400 L0 380 Q200 340 400 380 T800 360 L800 400 Z' fill='%238da1b5' fill-opacity='0.25'/%3E%3C/svg%3E");
+}
+
+body {
+  background-color: var(--theme-slate-50);
+  background-image: var(--theme-bg-img);
+  background-size: cover;
+  background-position: bottom;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  transition: background-color 0.3s ease;
+  -webkit-tap-highlight-color: transparent; /* better PWA touch behavior */
+}
+
+/* Prevent iOS input zoom on mobile */
+@media screen and (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe areas helper classes for PWA */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+}
