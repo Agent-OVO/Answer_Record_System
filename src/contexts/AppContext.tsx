@@ -66,6 +66,7 @@ type StudyRecordRow = {
 const ACCOUNTS_STORAGE_KEY = 'answerRecordSystem.accounts';
 const CURRENT_USER_STORAGE_KEY = 'currentUser';
 const HASH_ITERATIONS = 120000;
+const CLOUD_AUTH_EMAIL_DOMAIN = 'answer-record.invalid';
 
 const readJson = <T,>(storage: Storage, key: string): T | null => {
   try {
@@ -133,6 +134,21 @@ const hashPassword = async (password: string, salt: string) => {
   return bytesToBase64(new Uint8Array(bits));
 };
 
+const hashText = async (value: string) => {
+  const encoder = new TextEncoder();
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const normalizeCloudUsername = (username: string) => username.trim().toLowerCase();
+
+const usernameToCloudEmail = async (username: string) => {
+  const hash = await hashText(normalizeCloudUsername(username));
+  return `user-${hash}@${CLOUD_AUTH_EMAIL_DOMAIN}`;
+};
+
 const getStoredCurrentUser = () => {
   const accounts = getLocalAccounts();
   const isKnownUser = (user: User | null): user is User =>
@@ -163,10 +179,16 @@ const toNumber = (value: number | string | null | undefined) => {
 const sessionToUser = (session: Session | null): User | null => {
   const authUser = session?.user;
   if (!authUser) return null;
+  const metadataUsername = authUser.user_metadata?.username;
+  const username = typeof metadataUsername === 'string' && metadataUsername.trim()
+    ? metadataUsername.trim()
+    : authUser.email?.endsWith(`@${CLOUD_AUTH_EMAIL_DOMAIN}`)
+      ? authUser.id
+      : authUser.email || authUser.id;
 
   return {
     id: authUser.id,
-    username: authUser.email || authUser.user_metadata?.username || authUser.id,
+    username,
   };
 };
 
@@ -428,8 +450,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isSupabaseConfigured) {
       if (!supabase) return false;
 
+      const authEmail = await usernameToCloudEmail(normalizedUsername);
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: normalizedUsername,
+        email: authEmail,
         password,
       });
 
@@ -470,18 +493,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createAccount = async (username: string, password: string) => {
     const normalizedUsername = username.trim();
-    if (!normalizedUsername) return { success: false, message: isSupabaseConfigured ? '请输入邮箱' : '请输入账号名' };
+    if (!normalizedUsername) return { success: false, message: isSupabaseConfigured ? '请输入用户名' : '请输入账号名' };
     if (password.length < 6) return { success: false, message: '密码至少需要 6 位' };
 
     if (isSupabaseConfigured) {
       if (!supabase) return { success: false, message: 'Supabase 未配置' };
 
+      const authEmail = await usernameToCloudEmail(normalizedUsername);
       const { data, error } = await supabase.auth.signUp({
-        email: normalizedUsername,
+        email: authEmail,
         password,
         options: {
           data: {
             username: normalizedUsername,
+            loginName: normalizeCloudUsername(normalizedUsername),
           },
         },
       });
@@ -490,7 +515,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!data.session) {
         return {
           success: false,
-          message: '账号已创建。当前 Supabase 项目开启了邮箱确认，请先完成邮箱验证后再登录。',
+          message: '账号已创建，但当前 Supabase 项目仍开启了邮箱确认。请先关闭邮箱确认后再注册或登录。',
         };
       }
 

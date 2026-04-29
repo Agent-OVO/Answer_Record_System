@@ -64,7 +64,7 @@ VITE_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
 VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 ```
 
-如果你希望注册后立刻登录，可以在 Supabase 控制台的 `Authentication -> Providers -> Email` 中关闭邮箱确认；如果保持邮箱确认开启，用户需要先完成邮箱验证再登录。
+本项目的云端登录只让用户输入用户名和密码，内部会把用户名映射成 Supabase Auth 使用的隐藏邮箱。为了让注册后可以立刻进入系统，请在 Supabase 控制台的 `Authentication -> Providers -> Email` 中关闭邮箱确认。
 
 ## 环境变量
 
@@ -80,4 +80,4 @@ GEMINI_API_KEY="..."
 
 本地模式使用浏览器本地账号做轻量访问控制。清理浏览器数据会删除本地账号和学习记录。
 
-Supabase 模式使用云端账号和 Row Level Security，每个用户只能访问自己的学习记录。多端使用同一个邮箱和密码登录后，会同步同一份数据。
+Supabase 模式使用云端账号和 Row Level Security，每个用户只能访问自己的学习记录。用户界面只需要输入用户名和密码，系统内部会把用户名映射为 Supabase Auth 使用的隐藏邮箱。多端使用同一个用户名和密码登录后，会同步同一份数据。

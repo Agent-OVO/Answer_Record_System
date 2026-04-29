@@ -98,14 +98,14 @@ export function Login() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-700">{isCloudMode ? '邮箱' : '账号'}</label>
+              <label className="block text-sm font-medium text-slate-700">{isCloudMode ? '用户名' : '账号'}</label>
               <div className="mt-1">
                 <input
-                  type={isCloudMode ? 'email' : 'text'}
+                  type="text"
                   required
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  autoComplete={isCloudMode ? 'email' : 'username'}
+                  autoComplete="username"
                   className="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>

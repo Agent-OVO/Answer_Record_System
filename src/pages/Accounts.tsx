@@ -100,7 +100,7 @@ export function Accounts() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="font-bold text-slate-900">本地账户</h2>
+            <h2 className="font-bold text-slate-900">{isCloudMode ? '云端账户' : '本地账户'}</h2>
             <span className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
               {accounts.length} 个账号
             </span>
