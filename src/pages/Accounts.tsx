@@ -4,7 +4,7 @@ import { Modal } from '../components/ui/Modal';
 import { useAppContext } from '../contexts/AppContext';
 
 export function Accounts() {
-  const { accounts, currentUser, createAccount, updatePassword, deleteAccount } = useAppContext();
+  const { accounts, currentUser, isCloudMode, createAccount, updatePassword, deleteAccount } = useAppContext();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -82,7 +82,9 @@ export function Accounts() {
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">账户管理</h1>
-        <p className="text-slate-500 mt-1">本地浏览器账户，仅用于当前设备的轻量访问控制。</p>
+        <p className="text-slate-500 mt-1">
+          {isCloudMode ? '云端账户用于多端登录与数据同步。' : '本地浏览器账户，仅用于当前设备的轻量访问控制。'}
+        </p>
       </div>
 
       {status && (
@@ -137,7 +139,7 @@ export function Accounts() {
                   </button>
                   <button
                     onClick={() => handleDeleteAccount(account.username)}
-                    disabled={account.username === currentUser?.username || accounts.length <= 1}
+                    disabled={isCloudMode || account.username === currentUser?.username || accounts.length <= 1}
                     className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -149,6 +151,24 @@ export function Accounts() {
           </ul>
         </div>
 
+        {isCloudMode ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-5 self-start">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-indigo-600" />
+              <h2 className="font-bold text-slate-900">云端同步已启用</h2>
+            </div>
+            <p className="text-sm leading-6 text-slate-600">
+              当前项目使用 Supabase Auth 管理账户。新增账户请退出登录后在登录页注册；删除账户需要在 Supabase 控制台中完成。
+            </p>
+            <button
+              type="button"
+              onClick={() => currentUser?.username && openPasswordModal(currentUser.username)}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl transition-colors shadow-sm shadow-indigo-200"
+            >
+              修改当前账号密码
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleCreateAccount} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-5 self-start">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5 text-indigo-600" />
@@ -198,6 +218,7 @@ export function Accounts() {
             {isSubmitting ? '创建中...' : '创建账号'}
           </button>
         </form>
+        )}
       </div>
 
       <Modal isOpen={Boolean(editingUsername)} onClose={() => setEditingUsername(null)} title="修改密码">

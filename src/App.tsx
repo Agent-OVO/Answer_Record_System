@@ -13,7 +13,14 @@ import { Trash } from './pages/Trash';
 import { Accounts } from './pages/Accounts';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { currentUser } = useAppContext();
+  const { currentUser, isAuthLoading } = useAppContext();
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-sm font-medium text-slate-500">
+        正在恢复登录状态...
+      </div>
+    );
+  }
   if (!currentUser) return <Navigate to="/login" />;
   return <>{children}</>;
 };
