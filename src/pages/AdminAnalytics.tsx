@@ -42,6 +42,8 @@ import {
   filterAdminUsers,
   formatDuration,
   formatPercent,
+  getAdminPageLabel,
+  getAdminRecordTypeLabel,
   resolveDateRange,
   type AdminAnalyticsBundle,
   type AdminAnalyticsFilters,
@@ -689,7 +691,7 @@ export function AdminAnalytics() {
                       <p className="font-semibold text-red-700">{item.message}</p>
                       <span className="shrink-0 text-xs text-red-500">{formatDateTime(item.eventTimeMs)}</span>
                     </div>
-                    <p className="mt-2 text-red-500">{item.page || '未知页面'} · {item.username}</p>
+                    <p className="mt-2 text-red-500">{getAdminPageLabel(item.page)} · {item.username}</p>
                   </div>
                 ))}
                 {bundle.errors.length === 0 && <EmptyState text="暂无错误事件" />}
@@ -702,10 +704,13 @@ export function AdminAnalytics() {
                 {bundle.timeline.slice(0, 30).map(item => (
                   <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="font-semibold text-slate-800">{item.eventName}</p>
+                      <p className="font-semibold text-slate-800">{item.actionText}</p>
                       <span className="shrink-0 text-xs text-slate-500">{formatDateTime(item.eventTimeMs)}</span>
                     </div>
-                    <p className="mt-2 text-slate-500">{item.page || '未知页面'}{item.recordType ? ` · ${item.recordType}` : ''}</p>
+                    <p className="mt-2 text-slate-500">
+                      {getAdminPageLabel(item.page)}
+                      {item.recordType ? ` · ${getAdminRecordTypeLabel(item.recordType)}` : ''}
+                    </p>
                   </div>
                 ))}
                 {bundle.timeline.length === 0 && <EmptyState text="暂无用户时间线数据" />}

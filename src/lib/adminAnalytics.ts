@@ -125,6 +125,7 @@ export type AdminUserEvent = {
   userId: string;
   username: string;
   eventName: string;
+  actionText: string;
   eventTimeMs: number;
   localDate: string;
   page: string;
@@ -643,6 +644,117 @@ const eventLabel: Record<string, string> = {
   error: '错误事件',
 };
 
+const pageLabel: Record<string, string> = {
+  '/': '仪表盘',
+  '/exercises': '题目练习',
+  '/materials': '素材积累',
+  '/summaries': '每日总结',
+  '/statistics': '统计分析',
+  '/admin/analytics': '用户行为分析',
+  '/sync': '数据同步',
+  '/accounts': '账户管理',
+  '/trash': '回收站',
+};
+
+const recordTypeLabel: Record<string, string> = {
+  exercise: '练习记录',
+  material: '素材记录',
+  summary: '每日总结',
+};
+
+const generatedCloudEmailPattern = /^user-[a-f0-9]{64}@answer-record\.invalid$/i;
+const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+
+const getDisplayUsername = (username: unknown, userId: unknown) => {
+  const candidate = s(username).trim();
+  if (candidate && !generatedCloudEmailPattern.test(candidate) && !uuidPattern.test(candidate)) {
+    return candidate;
+  }
+
+  return s(userId).slice(0, 8) || '未知用户';
+};
+
+const getMetadataText = (metadata: Record<string, unknown>, key: string) => {
+  const value = metadata[key];
+  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+};
+
+export const getAdminPageLabel = (page?: string | null) => {
+  const normalized = (page || '').replace(/\/$/, '') || '/';
+  return pageLabel[normalized] || page || '未知页面';
+};
+
+export const getAdminRecordTypeLabel = (recordType?: string | null) =>
+  recordType ? (recordTypeLabel[recordType] || recordType) : '';
+
+const buildRecordHint = (event: Pick<AdminUserEvent, 'recordType' | 'metadata'>) => {
+  const metadata = event.metadata ?? {};
+  const pieces = [
+    getMetadataText(metadata, 'date'),
+    getMetadataText(metadata, 'type'),
+    getMetadataText(metadata, 'category'),
+  ].filter(Boolean);
+
+  return pieces.length > 0 ? `（${pieces.join(' · ')}）` : '';
+};
+
+export const describeAdminEvent = (event: Pick<AdminUserEvent, 'eventName' | 'page' | 'recordType' | 'metadata'>) => {
+  const metadata = event.metadata ?? {};
+  const recordLabel = getAdminRecordTypeLabel(event.recordType) || '记录';
+  const recordHint = buildRecordHint(event);
+  const page = getAdminPageLabel(event.page);
+  const errorMessage = getMetadataText(metadata, 'errorMessage') || getMetadataText(metadata, 'error');
+
+  switch (event.eventName) {
+    case 'page_view':
+      return `访问了${page}`;
+    case 'record_create':
+      return `新增了${recordLabel}${recordHint}`;
+    case 'record_update':
+      return `更新了${recordLabel}${recordHint}`;
+    case 'record_delete':
+      return `${metadata.hardDelete ? '彻底删除了' : '删除了'}${recordLabel}${recordHint}`;
+    case 'record_restore':
+      return `从回收站恢复了${recordLabel}${recordHint}`;
+    case 'exercise_start':
+      return `开始练习${recordHint}`;
+    case 'exercise_submit':
+      return `提交了练习${recordHint}`;
+    case 'material_open':
+      return `打开了素材${recordHint}`;
+    case 'material_search':
+      return '搜索了素材';
+    case 'material_filter_apply':
+      return '筛选了素材';
+    case 'summary_open':
+      return `打开了每日总结${recordHint}`;
+    case 'summary_save':
+      return `保存了每日总结${recordHint}`;
+    case 'import_data':
+      return `导入了数据${getMetadataText(metadata, 'recordCount') ? `（${getMetadataText(metadata, 'recordCount')} 条）` : ''}`;
+    case 'export_data':
+      return '导出了数据';
+    case 'sync_start':
+      return '开始同步数据';
+    case 'sync_success':
+      return '数据同步成功';
+    case 'sync_failed':
+      return `数据同步失败${errorMessage ? `：${errorMessage}` : ''}`;
+    case 'login':
+      return '登录了系统';
+    case 'logout':
+      return '退出了系统';
+    case 'session_start':
+      return '开始了一次学习会话';
+    case 'session_end':
+      return '结束了一次学习会话';
+    case 'error':
+      return `发生错误${errorMessage ? `：${errorMessage}` : ''}`;
+    default:
+      return eventLabel[event.eventName] || event.eventName || '未知操作';
+  }
+};
+
 const mapOverview = (rawValue: unknown): AdminOverview => {
   const raw = asRecord(rawValue);
   return {
@@ -717,7 +829,7 @@ const mapUserActivity = (rows: unknown): AdminUserActivity[] =>
     const riskTags = rawTags.map(tag => riskTagLabel[tag] || tag);
     return {
       userId: s(row.user_id),
-      username: s(row.username) || s(row.user_id).slice(0, 8) || '未知用户',
+      username: getDisplayUsername(row.username, row.user_id),
       lastActiveAt: msToIso(row.latest_activity_ms),
       activeDays: n(row.active_days),
       streakDays: n(row.active_days),
@@ -787,7 +899,7 @@ export const fetchAdminErrorEvents = (filters: AdminAnalyticsFilters) =>
       return {
         id: s(item.id),
         userId: s(item.user_id),
-        username: s(item.user_id).slice(0, 8) || '未知用户',
+        username: getDisplayUsername(item.username, item.user_id),
         eventTimeMs: n(item.event_time_ms),
         page: s(item.page),
         message: s(metadata.errorMessage) || s(metadata.error) || s(item.event_name),
@@ -797,20 +909,29 @@ export const fetchAdminErrorEvents = (filters: AdminAnalyticsFilters) =>
   );
 
 export const fetchAdminUserEventTimeline = (userId: string, filters: AdminAnalyticsFilters) =>
-  rpc<unknown>('get_admin_user_event_timeline', { user_id: userId, ...rangeArgs(filters) }, null).then((value) =>
-    asArray(asRecord(value).events).map(item => ({
-      id: s(item.id),
-      userId,
-      username: userId.slice(0, 8),
-      eventName: s(item.event_name),
-      eventTimeMs: n(item.event_time_ms),
-      localDate: s(item.local_date),
-      page: s(item.page),
-      recordType: s(item.record_type) || null,
-      recordId: s(item.record_id) || null,
-      metadata: asRecord(item.metadata),
-    }))
-  );
+  rpc<unknown>('get_admin_user_event_timeline', { user_id: userId, ...rangeArgs(filters) }, null).then((value) => {
+    const raw = asRecord(value);
+    const username = getDisplayUsername(raw.username, raw.user_id || userId);
+    return asArray(raw.events).map(item => {
+      const event: AdminUserEvent = {
+        id: s(item.id),
+        userId,
+        username: getDisplayUsername(item.username || username, userId),
+        eventName: s(item.event_name),
+        actionText: '',
+        eventTimeMs: n(item.event_time_ms),
+        localDate: s(item.local_date),
+        page: s(item.page),
+        recordType: s(item.record_type) || null,
+        recordId: s(item.record_id) || null,
+        metadata: asRecord(item.metadata),
+      };
+      return {
+        ...event,
+        actionText: describeAdminEvent(event),
+      };
+    });
+  });
 
 export const fetchAdminSessionOverview = (filters: AdminAnalyticsFilters) =>
   rpc<unknown>('get_admin_session_overview', rangeArgs(filters), null).then((value) => {
@@ -854,7 +975,7 @@ export const fetchAdminUserSessions = (userId: string, filters: AdminAnalyticsFi
     asArray(asRecord(value).sessions).map(item => ({
       id: s(item.id),
       userId,
-      username: userId.slice(0, 8),
+      username: getDisplayUsername(item.username, userId),
       startedAtMs: n(item.started_at_ms),
       endedAtMs: item.ended_at_ms === null || item.ended_at_ms === undefined ? null : n(item.ended_at_ms),
       durationMs: n(item.duration_ms),

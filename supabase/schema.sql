@@ -299,6 +299,28 @@ as $$
   select (to_timestamp(value_ms::double precision / 1000.0) at time zone 'UTC')::date;
 $$;
 
+create or replace function public.analytics_display_username(target_user_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select coalesce(
+        nullif(btrim(users.raw_user_meta_data ->> 'display_name'), ''),
+        nullif(btrim(users.raw_user_meta_data ->> 'full_name'), ''),
+        nullif(btrim(users.raw_user_meta_data ->> 'name'), ''),
+        nullif(btrim(users.raw_user_meta_data ->> 'username'), '')
+      )
+      from auth.users users
+      where users.id = target_user_id
+    ),
+    target_user_id::text
+  );
+$$;
+
 create index if not exists learning_sessions_started_utc_date_idx
   on public.learning_sessions (public.analytics_ms_to_utc_date(started_at_ms));
 
@@ -596,6 +618,7 @@ begin
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'user_id', user_id,
+    'username', public.analytics_display_username(user_id),
     'status', user_status,
     'latest_activity_ms', coalesce(latest_activity_ms, lifetime_latest_activity_ms),
     'active_days', active_days,
@@ -907,6 +930,7 @@ begin
       select jsonb_agg(jsonb_build_object(
         'id', id,
         'user_id', user_id,
+        'username', public.analytics_display_username(user_id),
         'event_name', event_name,
         'event_time_ms', event_time_ms,
         'local_date', local_date,
@@ -958,10 +982,12 @@ begin
 
   select jsonb_build_object(
     'user_id', target_user_id,
+    'username', public.analytics_display_username(target_user_id),
     'start_date', from_date,
     'end_date', to_date,
     'events', coalesce(jsonb_agg(jsonb_build_object(
       'id', id,
+      'username', public.analytics_display_username(target_user_id),
       'event_name', event_name,
       'event_time_ms', event_time_ms,
       'local_date', local_date,
@@ -1225,6 +1251,7 @@ begin
   )
   select jsonb_build_object(
     'user_id', target_user_id,
+    'username', public.analytics_display_username(target_user_id),
     'start_date', from_date,
     'end_date', to_date,
     'summary', jsonb_build_object(
@@ -1242,6 +1269,7 @@ begin
     'sessions', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', id,
+        'username', public.analytics_display_username(target_user_id),
         'started_at_ms', started_at_ms,
         'ended_at_ms', ended_at_ms,
         'duration_ms', duration_ms,
@@ -1271,6 +1299,7 @@ $$;
 
 revoke execute on function public.is_admin_user() from public;
 revoke execute on function public.require_admin_user() from public;
+revoke execute on function public.analytics_display_username(uuid) from public;
 revoke execute on function public.get_admin_activity_overview(date, date) from public;
 revoke execute on function public.get_admin_daily_activity(date, date) from public;
 revoke execute on function public.get_admin_user_activity(date, date) from public;
