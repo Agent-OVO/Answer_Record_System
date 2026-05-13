@@ -209,8 +209,19 @@ export function AdminAnalytics() {
   const selectedUser = useMemo(() => {
     if (!bundle) return null;
     if (userId) return bundle.users.find(user => user.userId === userId) || null;
-    return filteredUsers[0] || null;
-  }, [bundle, filteredUsers, userId]);
+    return null;
+  }, [bundle, userId]);
+
+  const userListSummary = useMemo(() => {
+    return filteredUsers.reduce(
+      (summary, user) => ({
+        activeUsers: summary.activeUsers + (user.activeDays > 0 ? 1 : 0),
+        totalRecords: summary.totalRecords + user.totalRecords,
+        totalQuestions: summary.totalQuestions + user.totalQuestions,
+      }),
+      { activeUsers: 0, totalRecords: 0, totalQuestions: 0 },
+    );
+  }, [filteredUsers]);
 
   const maxHeatmapValue = useMemo(
     () => Math.max(0, ...(bundle?.heatmap.map(cell => cell.activeDurationMs) || [])),
@@ -478,12 +489,19 @@ export function AdminAnalytics() {
 
       {activeTab === 'users' && (
         <div className="space-y-6">
-          {selectedUser && (
+          {userId && selectedUser ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="用户记录数" value={numberText(selectedUser.totalRecords)} icon={FileSpreadsheet} />
-              <MetricCard label="用户活跃天数" value={numberText(selectedUser.activeDays)} icon={UserRound} />
-              <MetricCard label="用户有效时长" value={formatDuration(selectedUser.activeDurationMs)} icon={Timer} />
-              <MetricCard label="用户平均正确率" value={formatPercent(selectedUser.averageAccuracy)} icon={BarChart3} />
+              <MetricCard label="该用户记录数" value={numberText(selectedUser.totalRecords)} icon={FileSpreadsheet} />
+              <MetricCard label="该用户活跃天数" value={numberText(selectedUser.activeDays)} icon={UserRound} />
+              <MetricCard label="该用户有效时长" value={formatDuration(selectedUser.activeDurationMs)} icon={Timer} />
+              <MetricCard label="该用户平均正确率" value={formatPercent(selectedUser.averageAccuracy)} icon={BarChart3} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="当前筛选用户数" value={numberText(userRows.length)} hint="与下方用户列表行数一致" icon={UsersRound} />
+              <MetricCard label="活跃用户数" value={numberText(userListSummary.activeUsers)} hint="当前筛选范围内有学习记录的用户" icon={UserRound} />
+              <MetricCard label="列表总记录数" value={numberText(userListSummary.totalRecords)} icon={FileSpreadsheet} />
+              <MetricCard label="列表总做题量" value={numberText(userListSummary.totalQuestions)} icon={BarChart3} />
             </div>
           )}
 
