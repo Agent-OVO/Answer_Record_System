@@ -646,6 +646,7 @@ const eventLabel: Record<string, string> = {
 
 const pageLabel: Record<string, string> = {
   '/': '仪表盘',
+  '/login': '登录页',
   '/exercises': '题目练习',
   '/materials': '素材积累',
   '/summaries': '每日总结',
@@ -681,6 +682,9 @@ const getMetadataText = (metadata: Record<string, unknown>, key: string) => {
 
 export const getAdminPageLabel = (page?: string | null) => {
   const normalized = (page || '').replace(/\/$/, '') || '/';
+  if (normalized.startsWith('/admin/users/')) {
+    return '用户详情';
+  }
   return pageLabel[normalized] || page || '未知页面';
 };
 
