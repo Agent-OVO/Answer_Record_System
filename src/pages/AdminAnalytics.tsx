@@ -50,6 +50,7 @@ import {
 } from '../lib/adminAnalytics';
 
 const COLORS = ['#337a7a', '#d04d55', '#519fc6', '#22c55e', '#f97316', '#a855f7', '#64748b'];
+const CHART_INITIAL_DIMENSION = { width: 1, height: 1 };
 
 type TabKey = 'overview' | 'users' | 'records' | 'events' | 'sessions' | 'exports';
 
@@ -425,7 +426,7 @@ export function AdminAnalytics() {
               <h2 className="text-lg font-bold text-slate-900">每日活跃与记录趋势</h2>
               {dailyActivity.length > 0 ? (
                 <div className="mt-5 h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
                     <AreaChart data={dailyActivity} margin={{ left: -24, right: 12, top: 10 }}>
                       <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={value => String(value).slice(5)} />
@@ -568,7 +569,7 @@ export function AdminAnalytics() {
             <h2 className="text-lg font-bold text-slate-900">记录类型占比</h2>
             {structure.recordTypeShare.some(item => item.value > 0) ? (
               <div className="mt-5 h-[300px]">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
                   <PieChart>
                     <Pie data={structure.recordTypeShare} dataKey="value" innerRadius={68} outerRadius={104} paddingAngle={4}>
                       {structure.recordTypeShare.map((entry, index) => (
@@ -588,7 +589,7 @@ export function AdminAnalytics() {
             <h2 className="text-lg font-bold text-slate-900">题型正确率对比</h2>
             {structure.questionTypeStats.length > 0 ? (
               <div className="mt-5 h-[300px]">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
                   <BarChart data={structure.questionTypeStats} margin={{ left: -24, right: 12 }}>
                     <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} />
@@ -644,7 +645,7 @@ export function AdminAnalytics() {
               <h2 className="text-lg font-bold text-slate-900">功能使用频率</h2>
               {bundle.featureUsage.length > 0 ? (
                 <div className="mt-5 h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
                     <BarChart data={bundle.featureUsage.slice(0, 10)} layout="vertical" margin={{ left: 40, right: 16 }}>
                       <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" horizontal={false} />
                       <XAxis type="number" tick={{ fontSize: 12, fill: '#64748B' }} />
@@ -728,7 +729,7 @@ export function AdminAnalytics() {
               <h2 className="text-lg font-bold text-slate-900">会话有效时长趋势</h2>
               {bundle.sessionTrend.length > 0 ? (
                 <div className="mt-5 h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
                     <LineChart data={bundle.sessionTrend} margin={{ left: -24, right: 12 }}>
                       <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={value => String(value).slice(5)} />
