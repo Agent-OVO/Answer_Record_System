@@ -558,6 +558,13 @@ const rangeArgs = (filters: Pick<AdminAnalyticsFilters, 'startDate' | 'endDate'>
   end_date: filters.endDate,
 });
 
+const isMissingRpcError = (error: unknown) => {
+  const record = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const code = typeof record.code === 'string' ? record.code : '';
+  const message = typeof record.message === 'string' ? record.message : '';
+  return code === 'PGRST202' || message.includes('schema cache');
+};
+
 export const checkIsAdmin = async (): Promise<AdminStatus> => {
   if (!isSupabaseConfigured || !supabase) {
     return {
@@ -569,6 +576,13 @@ export const checkIsAdmin = async (): Promise<AdminStatus> => {
 
   const { data, error } = await supabase.rpc('is_admin_user');
   if (error) {
+    if (isMissingRpcError(error)) {
+      const { data: legacyData, error: legacyError } = await supabase.rpc('is_admin');
+      if (!legacyError) {
+        return { isAdmin: Boolean(legacyData), isCloudMode: true };
+      }
+    }
+
     console.warn('Failed to check admin status', error);
     return { isAdmin: false, isCloudMode: true, reason: error.message };
   }

@@ -113,6 +113,7 @@ const FLUSH_DELAY_MS = 1500;
 const MAX_EVENT_BUFFER_SIZE = 100;
 const ACTIVITY_THROTTLE_MS = 1000;
 const DEFAULT_SOURCE = 'frontend';
+const ANALYTICS_UNAVAILABLE_STORAGE_KEY = 'analytics_remote_schema_unavailable';
 
 const EVENT_ACTIVITY_NAMES = [
   'pointerdown',
@@ -133,6 +134,33 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
   | string
   | undefined;
+
+let remoteAnalyticsUnavailable =
+  typeof sessionStorage !== 'undefined' &&
+  sessionStorage.getItem(ANALYTICS_UNAVAILABLE_STORAGE_KEY) === 'true';
+
+function isMissingAnalyticsSchemaError(error: unknown): boolean {
+  const record =
+    error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const code = typeof record.code === 'string' ? record.code : '';
+  const message = typeof record.message === 'string' ? record.message : '';
+
+  return (
+    code === 'PGRST202' ||
+    code === 'PGRST205' ||
+    message.includes('schema cache')
+  );
+}
+
+function markRemoteAnalyticsUnavailable(): void {
+  remoteAnalyticsUnavailable = true;
+
+  try {
+    sessionStorage.setItem(ANALYTICS_UNAVAILABLE_STORAGE_KEY, 'true');
+  } catch {
+    // Session storage is best-effort; in private modes the in-memory flag is enough.
+  }
+}
 
 export function createAnalyticsTracker({
   userId,
@@ -169,7 +197,12 @@ export function createAnalyticsTracker({
     });
 
   function canWriteAnalytics(): boolean {
-    return Boolean(isSupabaseConfigured && supabase && userId);
+    return Boolean(
+      isSupabaseConfigured &&
+      supabase &&
+      userId &&
+      !remoteAnalyticsUnavailable,
+    );
   }
 
   function getVisibilityState(): DocumentVisibilityState {
@@ -416,6 +449,11 @@ export function createAnalyticsTracker({
 
       sessionPersisted = true;
     } catch (error) {
+      if (isMissingAnalyticsSchemaError(error)) {
+        markRemoteAnalyticsUnavailable();
+        return;
+      }
+
       console.warn('Failed to persist learning session.', error);
     }
   }
@@ -591,6 +629,12 @@ export function createAnalyticsTracker({
         throw error;
       }
     } catch (error) {
+      if (isMissingAnalyticsSchemaError(error)) {
+        markRemoteAnalyticsUnavailable();
+        eventQueue.length = 0;
+        return;
+      }
+
       console.warn('Failed to flush analytics events.', error);
       eventQueue.unshift(...rows);
 
