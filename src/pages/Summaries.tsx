@@ -3,6 +3,7 @@ import { useAppContext } from '../contexts/AppContext';
 import { formatDate } from '../lib/utils';
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameMonth, isSameDay, parseISO, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight, Edit3, Plus, Trash2 } from 'lucide-react';
+import { dailySummaryInputSchema, formatZodError } from '../lib/recordSchemas';
 
 export function Summaries() {
   const { currentUser, summaries, exercises, materials, addSummary, updateSummary, deleteSummary } = useAppContext();
@@ -12,6 +13,7 @@ export function Summaries() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEditing, setIsEditing] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
+  const [summaryError, setSummaryError] = useState('');
 
   const selectedDateStr = formatDate(selectedDate);
   
@@ -30,16 +32,29 @@ export function Summaries() {
 
   // Handle Edit/Save
   const handleEdit = () => {
+    setSummaryError('');
     setSummaryDraft(dailySummary?.content || '');
     setIsEditing(true);
   };
 
   const handleSave = () => {
-    if (dailySummary) {
-      updateSummary(dailySummary.id, { content: summaryDraft });
-    } else {
-      addSummary({ date: selectedDateStr, content: summaryDraft });
+    const result = dailySummaryInputSchema.safeParse({
+      date: selectedDateStr,
+      content: summaryDraft,
+    });
+
+    if (!result.success) {
+      setSummaryError(formatZodError(result.error));
+      return;
     }
+
+    if (dailySummary) {
+      updateSummary(dailySummary.id, { content: result.data.content });
+    } else {
+      addSummary(result.data);
+    }
+
+    setSummaryError('');
     setIsEditing(false);
   };
 
@@ -125,6 +140,7 @@ export function Summaries() {
                   key={i}
                   onClick={() => {
                     setSelectedDate(date);
+                    setSummaryError('');
                     setIsEditing(false);
                   }}
                   className={`flex flex-col items-center justify-center h-12 rounded-xl transition-all ${
@@ -167,6 +183,11 @@ export function Summaries() {
               
               {isEditing ? (
                 <div className="space-y-3">
+                  {summaryError && (
+                    <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                      {summaryError}
+                    </div>
+                  )}
                   <textarea
                     autoFocus
                     maxLength={100}
@@ -178,7 +199,7 @@ export function Summaries() {
                   />
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-slate-400">{summaryDraft.length} / 100</span>
-                    <div className="space-x-2">
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row">
                        <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-sm border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 font-medium transition-colors">取消</button>
                        <button onClick={handleSave} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-xl shadow-sm shadow-indigo-200 hover:bg-indigo-700 font-medium transition-colors">保存</button>
                     </div>

@@ -4,6 +4,7 @@ import { formatDate } from '../lib/utils';
 import { Modal } from '../components/ui/Modal';
 import { MATERIAL_CATEGORIES, type MaterialCategory, type MaterialRecord } from '../types';
 import { Plus, Edit2, Trash2, Search, Library, LayoutGrid, List } from 'lucide-react';
+import { formatZodError, materialInputSchema } from '../lib/recordSchemas';
 
 const CATEGORY_THEMES: Record<MaterialCategory, {
   badge: string;
@@ -95,6 +96,7 @@ export function Materials() {
   const [date, setDate] = useState(formatDate(new Date()));
   const [category, setCategory] = useState<MaterialCategory>('经济');
   const [summary, setSummary] = useState('');
+  const [formError, setFormError] = useState('');
 
   const myMaterials = useMemo(() => 
     materials.filter(m => m.userId === currentUser?.id && !m.deletedAt)
@@ -122,6 +124,7 @@ export function Materials() {
   };
 
   const openForm = (record?: MaterialRecord) => {
+    setFormError('');
     if (record) {
       setEditingId(record.id);
       setDate(record.date);
@@ -146,9 +149,17 @@ export function Materials() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = { date, category, summary };
-    if (editingId) updateMaterial(editingId, data);
-    else addMaterial(data);
+    const result = materialInputSchema.safeParse({ date, category, summary });
+
+    if (!result.success) {
+      setFormError(formatZodError(result.error));
+      return;
+    }
+
+    if (editingId) updateMaterial(editingId, result.data);
+    else addMaterial(result.data);
+
+    setFormError('');
     setIsModalOpen(false);
   };
 
@@ -405,6 +416,11 @@ export function Materials() {
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? '编辑素材' : '新增素材'}>
         <form onSubmit={handleSave} className="space-y-5">
+          {formError && (
+            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {formError}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">日期 <span className="text-red-500">*</span></label>
             <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 transition-shadow" />
@@ -423,10 +439,12 @@ export function Materials() {
               placeholder="记录名言警句、热点词汇或答题金句..."
               value={summary} 
               onChange={e => setSummary(e.target.value)} 
+              maxLength={500}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-slate-900 transition-shadow" 
             />
+            <p className="mt-2 text-right text-xs text-slate-400">{summary.trim().length} / 500</p>
           </div>
-          <div className="pt-2 flex justify-end gap-3">
+          <div className="pt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">取消</button>
             <button type="submit" className="px-5 py-2.5 text-sm font-medium bg-indigo-600 text-white rounded-xl shadow-sm shadow-indigo-200 hover:bg-indigo-700 transition-colors">保存</button>
           </div>

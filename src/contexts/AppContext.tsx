@@ -1,9 +1,26 @@
-import React, { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { differenceInDays } from 'date-fns';
 import { User, ExerciseRecord, MaterialRecord, DailySummary, BaseRecord } from '../types';
 import { generateId } from '../lib/utils';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { checkIsAdmin } from '../lib/adminAnalytics';
+import {
+  ANALYTICS_EVENTS,
+  createAnalyticsTracker,
+  type AnalyticsEventName,
+  type AnalyticsTracker,
+  type TrackEventOptions,
+} from '../lib/analyticsTracker';
+import {
+  dailySummaryInputSchema,
+  exerciseInputSchema,
+  formatZodError,
+  materialInputSchema,
+  type DailySummaryInput,
+  type ExerciseInput,
+  type MaterialInput,
+} from '../lib/recordSchemas';
 
 type RecordKind = 'exercise' | 'material' | 'summary';
 
@@ -13,6 +30,9 @@ interface AppContextType {
   hasAccounts: boolean;
   isCloudMode: boolean;
   isAuthLoading: boolean;
+  isAdmin: boolean;
+  isAdminLoading: boolean;
+  trackAnalyticsEvent: (eventName: AnalyticsEventName, options?: TrackEventOptions) => void;
   login: (username: string, password: string, remember: boolean) => Promise<boolean>;
   logout: () => void;
   createAccount: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
@@ -38,7 +58,12 @@ interface AppContextType {
   restoreRecord: (type: 'exercises' | 'materials' | 'summaries', id: string) => void;
   hardDeleteRecord: (type: 'exercises' | 'materials' | 'summaries', id: string) => void;
 
-  importData: (exercises: ExerciseRecord[], materials: MaterialRecord[], summaries: DailySummary[], mode: 'append' | 'overwrite') => void;
+  importData: (
+    exercises: ExerciseInput[],
+    materials: MaterialInput[],
+    summaries: DailySummaryInput[],
+    mode: 'append' | 'overwrite'
+  ) => Promise<{ success: boolean; message: string; backupCreated: boolean }>;
 }
 
 type LocalAccount = {
@@ -220,13 +245,34 @@ const toCloudRow = (recordType: RecordKind, record: BaseRecord, userId: string) 
   };
 };
 
+const validateExerciseInputs = (records: ExerciseInput[]) =>
+  records.map((record, index) => {
+    const result = exerciseInputSchema.safeParse(record);
+    if (!result.success) throw new Error(`练习第 ${index + 1} 条：${formatZodError(result.error)}`);
+    return result.data;
+  });
+
+const validateMaterialInputs = (records: MaterialInput[]) =>
+  records.map((record, index) => {
+    const result = materialInputSchema.safeParse(record);
+    if (!result.success) throw new Error(`素材第 ${index + 1} 条：${formatZodError(result.error)}`);
+    return result.data;
+  });
+
+const validateSummaryInputs = (records: DailySummaryInput[]) =>
+  records.map((record, index) => {
+    const result = dailySummaryInputSchema.safeParse(record);
+    if (!result.success) throw new Error(`总结第 ${index + 1} 条：${formatZodError(result.error)}`);
+    return result.data;
+  });
+
 const upsertRecord = <T extends BaseRecord>(records: T[], next: T) => {
   return records.some(record => record.id === next.id)
     ? records.map(record => record.id === next.id ? next : record)
     : [next, ...records];
 };
 
-const sortByCreatedAtDesc = <T extends BaseRecord>(records: T[]) => {
+  const sortByCreatedAtDesc = <T extends BaseRecord>(records: T[]) => {
   return [...records].sort((a, b) => b.createdAt - a.createdAt);
 };
 
@@ -236,10 +282,110 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(() => isSupabaseConfigured ? null : getStoredCurrentUser());
   const [accounts, setAccounts] = useState<AccountSummary[]>(() => isSupabaseConfigured ? [] : getAccountSummaries());
   const [isAuthLoading, setIsAuthLoading] = useState(isSupabaseConfigured);
+  const [isAdmin, setIsAdmin] = useState(!isSupabaseConfigured);
+  const [isAdminLoading, setIsAdminLoading] = useState(isSupabaseConfigured);
+  const analyticsTrackerRef = useRef<AnalyticsTracker | null>(null);
+  const pendingAuthEventRef = useRef<AnalyticsEventName | null>(null);
 
   const [exercises, setExercises] = useState<ExerciseRecord[]>(() => localArray<ExerciseRecord>('exercises'));
   const [materials, setMaterials] = useState<MaterialRecord[]>(() => localArray<MaterialRecord>('materials'));
   const [summaries, setSummaries] = useState<DailySummary[]>(() => localArray<DailySummary>('summaries'));
+
+  const trackAnalyticsEvent = useCallback((eventName: AnalyticsEventName, options?: TrackEventOptions) => {
+    void analyticsTrackerRef.current?.trackEvent(eventName, options);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const previousTracker = analyticsTrackerRef.current;
+    analyticsTrackerRef.current = null;
+
+    if (previousTracker) {
+      void previousTracker.destroy();
+    }
+
+    if (!currentUser) {
+      setIsAdmin(false);
+      setIsAdminLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const tracker = createAnalyticsTracker({
+      userId: currentUser.id,
+      appVersion: '0.0.0',
+      getPage: () => window.location.hash.replace(/^#/, '') || '/',
+    });
+    analyticsTrackerRef.current = tracker;
+    void tracker.startSession({ username: currentUser.username });
+
+    const pendingAuthEvent = pendingAuthEventRef.current;
+    pendingAuthEventRef.current = null;
+    if (pendingAuthEvent) {
+      void tracker.trackEvent(pendingAuthEvent, {
+        metadata: { username: currentUser.username },
+        source: 'auth',
+      });
+    }
+
+    setIsAdminLoading(isSupabaseConfigured);
+    if (!isSupabaseConfigured) {
+      setIsAdmin(true);
+      setIsAdminLoading(false);
+    } else {
+      checkIsAdmin()
+        .then(status => {
+          if (isMounted) setIsAdmin(status.isAdmin);
+        })
+        .catch(error => {
+          console.warn('Failed to load admin status', error);
+          if (isMounted) setIsAdmin(false);
+        })
+        .finally(() => {
+          if (isMounted) setIsAdminLoading(false);
+        });
+    }
+
+    return () => {
+      isMounted = false;
+      if (analyticsTrackerRef.current === tracker) {
+        analyticsTrackerRef.current = null;
+      }
+      void tracker.destroy();
+    };
+  }, [currentUser?.id, currentUser?.username]);
+
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      trackAnalyticsEvent(ANALYTICS_EVENTS.ERROR, {
+        source: 'window_error',
+        metadata: {
+          errorMessage: event.message,
+          filename: event.filename,
+          line: event.lineno,
+          column: event.colno,
+        },
+      });
+    };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      trackAnalyticsEvent(ANALYTICS_EVENTS.ERROR, {
+        source: 'unhandled_rejection',
+        metadata: {
+          errorMessage: event.reason instanceof Error ? event.reason.message : String(event.reason),
+        },
+      });
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, [trackAnalyticsEvent]);
 
   const applyCloudRows = useCallback((rows: StudyRecordRow[]) => {
     const nextExercises: ExerciseRecord[] = [];
@@ -299,7 +445,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .from('study_records')
       .upsert(toCloudRow(recordType, record, currentUser.id), { onConflict: 'id' });
 
-    if (error) console.error('Failed to sync cloud record', error);
+    if (error) {
+      console.error('Failed to sync cloud record', error);
+      void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.SYNC_FAILED, {
+        source: 'study_records',
+        recordType,
+        recordId: record.id,
+        metadata: { errorMessage: error.message },
+      });
+      return;
+    }
+
+    void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.SYNC_SUCCESS, {
+      source: 'study_records',
+      recordType,
+      recordId: record.id,
+    });
   }, [currentUser]);
 
   const deleteCloudRecord = useCallback(async (id: string) => {
@@ -311,7 +472,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .eq('id', id)
       .eq('user_id', currentUser.id);
 
-    if (error) console.error('Failed to delete cloud record', error);
+    if (error) {
+      console.error('Failed to delete cloud record', error);
+      void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.SYNC_FAILED, {
+        source: 'study_records_delete',
+        recordId: id,
+        metadata: { errorMessage: error.message },
+      });
+    }
   }, [currentUser]);
 
   const syncCloudImport = useCallback(async (
@@ -322,24 +490,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   ) => {
     if (!supabase || !currentUser) return;
 
-    if (mode === 'overwrite') {
-      const { error } = await supabase
-        .from('study_records')
-        .delete()
-        .eq('user_id', currentUser.id)
-        .in('record_type', ['exercise', 'material', 'summary']);
-
-      if (error) {
-        console.error('Failed to clear cloud records before import', error);
-        return;
-      }
-    }
-
     const rows = [
       ...nextExercises.map(record => toCloudRow('exercise', record, currentUser.id)),
       ...nextMaterials.map(record => toCloudRow('material', record, currentUser.id)),
       ...nextSummaries.map(record => toCloudRow('summary', record, currentUser.id)),
     ];
+
+    if (mode === 'overwrite') {
+      const { error } = await supabase.rpc('replace_study_records', {
+        import_rows: rows,
+      });
+
+      if (error) throw error;
+      return;
+    }
 
     if (rows.length === 0) return;
 
@@ -347,7 +511,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .from('study_records')
       .upsert(rows, { onConflict: 'id' });
 
-    if (error) console.error('Failed to import cloud records', error);
+    if (error) throw error;
   }, [currentUser]);
 
   useEffect(() => {
@@ -463,6 +627,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const nextUser = sessionToUser(data.session);
       if (nextUser) {
+        pendingAuthEventRef.current = ANALYTICS_EVENTS.LOGIN;
         setCurrentUser(nextUser);
         setAccounts([{
           username: nextUser.username,
@@ -478,6 +643,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (account && await hashPassword(password, account.salt) === account.passwordHash) {
       const userObj = { id: account.username, username: account.username };
+      pendingAuthEventRef.current = ANALYTICS_EVENTS.LOGIN;
       setCurrentUser(userObj);
       if (remember) {
         localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(userObj));
@@ -521,6 +687,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const nextUser = sessionToUser(data.session);
       if (nextUser) {
+        pendingAuthEventRef.current = ANALYTICS_EVENTS.LOGIN;
         setCurrentUser(nextUser);
         setAccounts([{
           username: nextUser.username,
@@ -596,6 +763,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.LOGOUT, { source: 'auth' });
+    void analyticsTrackerRef.current?.endSession({ reason: 'logout' });
     setCurrentUser(null);
     localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
     sessionStorage.removeItem(CURRENT_USER_STORAGE_KEY);
@@ -613,6 +782,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nextRecord = { ...data, id: generateId(), userId: currentUser.id, createdAt: Date.now() } as ExerciseRecord;
     setExercises(prev => [nextRecord, ...prev]);
     void syncCloudRecord('exercise', nextRecord);
+    void analyticsTrackerRef.current?.recordMutation('create', {
+      recordType: 'exercise',
+      recordId: nextRecord.id,
+      metadata: { date: nextRecord.date, type: nextRecord.type, totalQuestions: nextRecord.totalQuestions },
+    });
+    void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.EXERCISE_SUBMIT, {
+      recordType: 'exercise',
+      recordId: nextRecord.id,
+      metadata: { date: nextRecord.date, type: nextRecord.type },
+    });
   };
 
   const updateExercise = (id: string, data: Partial<ExerciseRecord>) => {
@@ -620,6 +799,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (record.id !== id) return record;
       const nextRecord = { ...record, ...data };
       void syncCloudRecord('exercise', nextRecord);
+      void analyticsTrackerRef.current?.recordMutation('update', {
+        recordType: 'exercise',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date, type: nextRecord.type },
+      });
       return nextRecord;
     }));
   };
@@ -629,6 +813,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (record.id !== id) return record;
       const nextRecord = { ...record, deletedAt: Date.now() };
       void syncCloudRecord('exercise', nextRecord);
+      void analyticsTrackerRef.current?.recordMutation('delete', {
+        recordType: 'exercise',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date, type: nextRecord.type },
+      });
       return nextRecord;
     }));
   };
@@ -639,6 +828,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nextRecord = { ...data, id: generateId(), userId: currentUser.id, createdAt: Date.now() } as MaterialRecord;
     setMaterials(prev => [nextRecord, ...prev]);
     void syncCloudRecord('material', nextRecord);
+    void analyticsTrackerRef.current?.recordMutation('create', {
+      recordType: 'material',
+      recordId: nextRecord.id,
+      metadata: { date: nextRecord.date, category: nextRecord.category },
+    });
   };
 
   const updateMaterial = (id: string, data: Partial<MaterialRecord>) => {
@@ -646,6 +840,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (record.id !== id) return record;
       const nextRecord = { ...record, ...data };
       void syncCloudRecord('material', nextRecord);
+      void analyticsTrackerRef.current?.recordMutation('update', {
+        recordType: 'material',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date, category: nextRecord.category },
+      });
       return nextRecord;
     }));
   };
@@ -655,6 +854,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (record.id !== id) return record;
       const nextRecord = { ...record, deletedAt: Date.now() };
       void syncCloudRecord('material', nextRecord);
+      void analyticsTrackerRef.current?.recordMutation('delete', {
+        recordType: 'material',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date, category: nextRecord.category },
+      });
       return nextRecord;
     }));
   };
@@ -665,6 +869,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const nextRecord = { ...data, id: generateId(), userId: currentUser.id, createdAt: Date.now() } as DailySummary;
     setSummaries(prev => [nextRecord, ...prev]);
     void syncCloudRecord('summary', nextRecord);
+    void analyticsTrackerRef.current?.recordMutation('create', {
+      recordType: 'summary',
+      recordId: nextRecord.id,
+      metadata: { date: nextRecord.date, contentLength: nextRecord.content.length },
+    });
+    void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.SUMMARY_SAVE, {
+      recordType: 'summary',
+      recordId: nextRecord.id,
+      metadata: { date: nextRecord.date },
+    });
   };
 
   const updateSummary = (id: string, data: Partial<DailySummary>) => {
@@ -672,6 +886,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (record.id !== id) return record;
       const nextRecord = { ...record, ...data };
       void syncCloudRecord('summary', nextRecord);
+      void analyticsTrackerRef.current?.recordMutation('update', {
+        recordType: 'summary',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date, contentLength: nextRecord.content.length },
+      });
+      void analyticsTrackerRef.current?.trackEvent(ANALYTICS_EVENTS.SUMMARY_SAVE, {
+        recordType: 'summary',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date },
+      });
       return nextRecord;
     }));
   };
@@ -681,6 +905,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (record.id !== id) return record;
       const nextRecord = { ...record, deletedAt: Date.now() };
       void syncCloudRecord('summary', nextRecord);
+      void analyticsTrackerRef.current?.recordMutation('delete', {
+        recordType: 'summary',
+        recordId: nextRecord.id,
+        metadata: { date: nextRecord.date },
+      });
       return nextRecord;
     }));
   };
@@ -691,6 +920,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (record.id !== id) return record;
         const nextRecord = { ...record, deletedAt: undefined };
         void syncCloudRecord('exercise', nextRecord);
+        void analyticsTrackerRef.current?.recordMutation('restore', {
+          recordType: 'exercise',
+          recordId: nextRecord.id,
+          metadata: { date: nextRecord.date, type: nextRecord.type },
+        });
         return nextRecord;
       }));
     }
@@ -699,6 +933,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (record.id !== id) return record;
         const nextRecord = { ...record, deletedAt: undefined };
         void syncCloudRecord('material', nextRecord);
+        void analyticsTrackerRef.current?.recordMutation('restore', {
+          recordType: 'material',
+          recordId: nextRecord.id,
+          metadata: { date: nextRecord.date, category: nextRecord.category },
+        });
         return nextRecord;
       }));
     }
@@ -707,39 +946,148 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (record.id !== id) return record;
         const nextRecord = { ...record, deletedAt: undefined };
         void syncCloudRecord('summary', nextRecord);
+        void analyticsTrackerRef.current?.recordMutation('restore', {
+          recordType: 'summary',
+          recordId: nextRecord.id,
+          metadata: { date: nextRecord.date },
+        });
         return nextRecord;
       }));
     }
   };
 
   const hardDeleteRecord = (type: string, id: string) => {
+    const recordType: RecordKind = type === 'exercises' ? 'exercise' : type === 'materials' ? 'material' : 'summary';
     if (type === 'exercises') setExercises(prev => prev.filter(record => record.id !== id));
     if (type === 'materials') setMaterials(prev => prev.filter(record => record.id !== id));
     if (type === 'summaries') setSummaries(prev => prev.filter(record => record.id !== id));
+    void analyticsTrackerRef.current?.recordMutation('delete', {
+      recordType,
+      recordId: id,
+      metadata: { hardDelete: true },
+    });
     void deleteCloudRecord(id);
   };
 
-  const importData = (newExers: ExerciseRecord[], newMats: MaterialRecord[], newSums: DailySummary[], mode: 'append' | 'overwrite') => {
-    if (!currentUser) return;
-
-    const prepData = <T extends BaseRecord>(data: T[]) =>
-      data.map(record => ({ ...record, userId: currentUser.id, id: generateId(), createdAt: Date.now(), deletedAt: undefined }));
-
-    const preparedExercises = prepData(newExers) as ExerciseRecord[];
-    const preparedMaterials = prepData(newMats) as MaterialRecord[];
-    const preparedSummaries = prepData(newSums) as DailySummary[];
-
-    if (mode === 'overwrite') {
-      setExercises(prev => [...prev.filter(record => record.userId !== currentUser.id), ...preparedExercises]);
-      setMaterials(prev => [...prev.filter(record => record.userId !== currentUser.id), ...preparedMaterials]);
-      setSummaries(prev => [...prev.filter(record => record.userId !== currentUser.id), ...preparedSummaries]);
-    } else {
-      setExercises(prev => [...preparedExercises, ...prev]);
-      setMaterials(prev => [...preparedMaterials, ...prev]);
-      setSummaries(prev => [...preparedSummaries, ...prev]);
+  const importData = async (
+    newExers: ExerciseInput[],
+    newMats: MaterialInput[],
+    newSums: DailySummaryInput[],
+    mode: 'append' | 'overwrite'
+  ) => {
+    if (!currentUser) {
+      return {
+        success: false,
+        message: '请先登录后再导入数据',
+        backupCreated: false,
+      };
     }
 
-    void syncCloudImport(preparedExercises, preparedMaterials, preparedSummaries, mode);
+    trackAnalyticsEvent(ANALYTICS_EVENTS.IMPORT_DATA, {
+      source: 'data_sync',
+      metadata: {
+        mode,
+        exerciseCount: newExers.length,
+        materialCount: newMats.length,
+        summaryCount: newSums.length,
+      },
+    });
+
+    try {
+      const validatedExercises = validateExerciseInputs(newExers);
+      const validatedMaterials = validateMaterialInputs(newMats);
+      const validatedSummaries = validateSummaryInputs(newSums);
+
+      const baseCreatedAt = Date.now();
+      let cursor = 0;
+      const nextCreatedAt = () => baseCreatedAt + cursor++;
+
+      const prepData = <T extends ExerciseInput | MaterialInput | DailySummaryInput>(data: T[]) =>
+        data.map(record => ({
+          ...record,
+          userId: currentUser.id,
+          id: generateId(),
+          createdAt: nextCreatedAt(),
+          deletedAt: undefined,
+        }));
+
+      const preparedExercises = prepData(validatedExercises) as ExerciseRecord[];
+      const preparedMaterials = prepData(validatedMaterials) as MaterialRecord[];
+      const preparedSummaries = prepData(validatedSummaries) as DailySummary[];
+
+      const nextExercises = sortByCreatedAtDesc(
+        mode === 'overwrite'
+          ? [...exercises.filter(record => record.userId !== currentUser.id), ...preparedExercises]
+          : [...preparedExercises, ...exercises]
+      );
+      const nextMaterials = sortByCreatedAtDesc(
+        mode === 'overwrite'
+          ? [...materials.filter(record => record.userId !== currentUser.id), ...preparedMaterials]
+          : [...preparedMaterials, ...materials]
+      );
+      const nextSummaries = sortByCreatedAtDesc(
+        mode === 'overwrite'
+          ? [...summaries.filter(record => record.userId !== currentUser.id), ...preparedSummaries]
+          : [...preparedSummaries, ...summaries]
+      );
+
+      if (isSupabaseConfigured) {
+        if (!supabase) {
+          return {
+            success: false,
+            message: 'Supabase 未配置完成，无法导入云端数据',
+            backupCreated: false,
+          };
+        }
+
+        trackAnalyticsEvent(ANALYTICS_EVENTS.SYNC_START, {
+          source: 'import_data',
+          metadata: { mode },
+        });
+        await syncCloudImport(preparedExercises, preparedMaterials, preparedSummaries, mode);
+        await loadCloudRecords(currentUser.id);
+        trackAnalyticsEvent(ANALYTICS_EVENTS.SYNC_SUCCESS, {
+          source: 'import_data',
+          metadata: { mode, recordCount: preparedExercises.length + preparedMaterials.length + preparedSummaries.length },
+        });
+
+        return {
+          success: true,
+          message: mode === 'overwrite'
+            ? '覆盖导入完成，云端数据已安全替换'
+            : '追加导入完成，云端数据已同步',
+          backupCreated: mode === 'overwrite',
+        };
+      }
+
+      setExercises(nextExercises);
+      setMaterials(nextMaterials);
+      setSummaries(nextSummaries);
+
+      return {
+        success: true,
+        message: mode === 'overwrite'
+          ? '覆盖导入完成，本地数据已替换'
+          : '追加导入完成，本地数据已更新',
+        backupCreated: mode === 'overwrite',
+      };
+    } catch (error) {
+      console.error('Failed to import data', error);
+      trackAnalyticsEvent(ANALYTICS_EVENTS.SYNC_FAILED, {
+        source: 'import_data',
+        metadata: { mode, errorMessage: error instanceof Error ? error.message : 'unknown' },
+      });
+
+      if (isSupabaseConfigured && currentUser) {
+        await loadCloudRecords(currentUser.id);
+      }
+
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '导入失败，请稍后重试',
+        backupCreated: false,
+      };
+    }
   };
 
   return (
@@ -749,6 +1097,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       hasAccounts: isSupabaseConfigured ? true : accounts.length > 0,
       isCloudMode: isSupabaseConfigured,
       isAuthLoading,
+      isAdmin,
+      isAdminLoading,
+      trackAnalyticsEvent,
       login,
       logout,
       createAccount,

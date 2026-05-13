@@ -11,6 +11,7 @@ import { Statistics } from './pages/Statistics';
 import { DataSync } from './pages/DataSync';
 import { Trash } from './pages/Trash';
 import { Accounts } from './pages/Accounts';
+import { AdminAnalytics } from './pages/AdminAnalytics';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { currentUser, isAuthLoading } = useAppContext();
@@ -38,6 +39,8 @@ const AppRoutes = () => {
         <Route path="sync" element={<DataSync />} />
         <Route path="accounts" element={<Accounts />} />
         <Route path="trash" element={<Trash />} />
+        <Route path="admin/analytics" element={<AdminAnalytics />} />
+        <Route path="admin/users/:userId" element={<AdminAnalytics />} />
       </Route>
     </Routes>
   );

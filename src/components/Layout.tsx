@@ -14,9 +14,11 @@ import {
   Check,
   User,
   X,
-  UsersRound
+  UsersRound,
+  Activity
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { ANALYTICS_EVENTS } from '../lib/analyticsTracker';
 
 const themes = [
   { id: 'qinglu', name: '青绿山水', color: '#5cb3b3' },
@@ -29,7 +31,7 @@ const appName = '学而录';
 const appIconUrl = `${import.meta.env.BASE_URL}icon.svg`;
 
 export function Layout() {
-  const { currentUser, logout } = useAppContext();
+  const { currentUser, isAdmin, logout, trackAnalyticsEvent } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
@@ -40,6 +42,13 @@ export function Layout() {
     document.documentElement.setAttribute('data-theme', currentTheme);
     localStorage.setItem('app-theme', currentTheme);
   }, [currentTheme]);
+
+  useEffect(() => {
+    trackAnalyticsEvent(ANALYTICS_EVENTS.PAGE_VIEW, {
+      page: location.pathname,
+      metadata: { pathname: location.pathname },
+    });
+  }, [location.pathname, trackAnalyticsEvent]);
 
   const handleLogout = () => {
     logout();
@@ -52,12 +61,14 @@ export function Layout() {
     { to: "/materials", icon: Library, label: "素材积累", shortLabel: "素材" },
     { to: "/summaries", icon: CalendarDays, label: "每日总结", shortLabel: "总结" },
     { to: "/statistics", icon: BarChart3, label: "统计分析" },
+    { to: "/admin/analytics", icon: Activity, label: "用户行为", adminOnly: true },
     { to: "/sync", icon: RefreshCcw, label: "数据同步" },
     { to: "/accounts", icon: UsersRound, label: "账户管理" },
     { to: "/trash", icon: Trash2, label: "回收站" },
   ];
 
-  const bottomNavItems = navItems.slice(0, 4);
+  const visibleNavItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const bottomNavItems = visibleNavItems.slice(0, 4);
 
   return (
     <div className="min-h-screen bg-transparent text-slate-800 font-sans flex overflow-hidden">
@@ -71,7 +82,7 @@ export function Layout() {
         </div>
         
         <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -221,7 +232,7 @@ export function Layout() {
                 <div className="p-2">
                   <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">更多功能</p>
                   <div className="space-y-1">
-                    {navItems.slice(4).map((item) => (
+                    {visibleNavItems.slice(4).map((item) => (
                       <NavLink
                         key={item.to}
                         to={item.to}
