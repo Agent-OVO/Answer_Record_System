@@ -912,29 +912,38 @@ export const fetchAdminErrorEvents = (filters: AdminAnalyticsFilters) =>
     })
   );
 
+const mapAdminEvent = (item: Record<string, unknown>, fallbackUserId = '') => {
+  const userId = s(item.user_id) || fallbackUserId;
+  const event: AdminUserEvent = {
+    id: s(item.id),
+    userId,
+    username: getDisplayUsername(item.username, userId),
+    eventName: s(item.event_name),
+    actionText: '',
+    eventTimeMs: n(item.event_time_ms),
+    localDate: s(item.local_date),
+    page: s(item.page),
+    recordType: s(item.record_type) || null,
+    recordId: s(item.record_id) || null,
+    metadata: asRecord(item.metadata),
+  };
+
+  return {
+    ...event,
+    actionText: describeAdminEvent(event),
+  };
+};
+
+export const fetchAdminEventTimeline = (filters: AdminAnalyticsFilters) =>
+  rpc<unknown>('get_admin_event_timeline', rangeArgs(filters), null).then((value) =>
+    asArray(asRecord(value).events).map(item => mapAdminEvent(item))
+  );
+
 export const fetchAdminUserEventTimeline = (userId: string, filters: AdminAnalyticsFilters) =>
   rpc<unknown>('get_admin_user_event_timeline', { user_id: userId, ...rangeArgs(filters) }, null).then((value) => {
     const raw = asRecord(value);
     const username = getDisplayUsername(raw.username, raw.user_id || userId);
-    return asArray(raw.events).map(item => {
-      const event: AdminUserEvent = {
-        id: s(item.id),
-        userId,
-        username: getDisplayUsername(item.username || username, userId),
-        eventName: s(item.event_name),
-        actionText: '',
-        eventTimeMs: n(item.event_time_ms),
-        localDate: s(item.local_date),
-        page: s(item.page),
-        recordType: s(item.record_type) || null,
-        recordId: s(item.record_id) || null,
-        metadata: asRecord(item.metadata),
-      };
-      return {
-        ...event,
-        actionText: describeAdminEvent(event),
-      };
-    });
+    return asArray(raw.events).map(item => mapAdminEvent({ ...item, username: item.username || username }, userId));
   });
 
 export const fetchAdminSessionOverview = (filters: AdminAnalyticsFilters) =>
@@ -974,22 +983,32 @@ export const fetchAdminActiveTimeHeatmap = (filters: AdminAnalyticsFilters) =>
     }))
   );
 
+const mapAdminSession = (item: Record<string, unknown>, fallbackUserId = ''): AdminUserSession => {
+  const userId = s(item.user_id) || fallbackUserId;
+  return {
+    id: s(item.id),
+    userId,
+    username: getDisplayUsername(item.username, userId),
+    startedAtMs: n(item.started_at_ms),
+    endedAtMs: item.ended_at_ms === null || item.ended_at_ms === undefined ? null : n(item.ended_at_ms),
+    durationMs: n(item.duration_ms),
+    activeDurationMs: n(item.active_duration_ms),
+    idleDurationMs: n(item.idle_duration_ms),
+    pageCount: n(item.page_count),
+    eventCount: n(item.event_count),
+    recordCount: n(item.record_count),
+    completedRecordCount: n(item.completed_record_count),
+  };
+};
+
+export const fetchAdminSessions = (filters: AdminAnalyticsFilters) =>
+  rpc<unknown>('get_admin_sessions', rangeArgs(filters), null).then((value) =>
+    asArray(asRecord(value).sessions).map(item => mapAdminSession(item))
+  );
+
 export const fetchAdminUserSessions = (userId: string, filters: AdminAnalyticsFilters) =>
   rpc<unknown>('get_admin_user_sessions', { user_id: userId, ...rangeArgs(filters) }, null).then((value) =>
-    asArray(asRecord(value).sessions).map(item => ({
-      id: s(item.id),
-      userId,
-      username: getDisplayUsername(item.username, userId),
-      startedAtMs: n(item.started_at_ms),
-      endedAtMs: item.ended_at_ms === null || item.ended_at_ms === undefined ? null : n(item.ended_at_ms),
-      durationMs: n(item.duration_ms),
-      activeDurationMs: n(item.active_duration_ms),
-      idleDurationMs: n(item.idle_duration_ms),
-      pageCount: n(item.page_count),
-      eventCount: n(item.event_count),
-      recordCount: n(item.record_count),
-      completedRecordCount: n(item.completed_record_count),
-    }))
+    asArray(asRecord(value).sessions).map(item => mapAdminSession(item, userId))
   );
 
 export const fetchCloudAdminAnalytics = async (
@@ -1044,13 +1063,15 @@ export const fetchCloudAdminAnalytics = async (
   const overview = mapOverview(rawOverview);
   const structure = mapStructure(rawOverview);
 
-  const targetUserId = selectedUserId || users[0]?.userId || '';
-  const [timeline, sessions] = targetUserId
+  const [timeline, sessions] = selectedUserId
     ? await Promise.all([
-        fetchAdminUserEventTimeline(targetUserId, filters),
-        fetchAdminUserSessions(targetUserId, filters),
+        fetchAdminUserEventTimeline(selectedUserId, filters),
+        fetchAdminUserSessions(selectedUserId, filters),
       ])
-    : [[], []] as [AdminUserEvent[], AdminUserSession[]];
+    : await Promise.all([
+        fetchAdminEventTimeline(filters),
+        fetchAdminSessions(filters),
+      ]);
 
   return {
     status,

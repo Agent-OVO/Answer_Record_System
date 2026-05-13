@@ -957,6 +957,57 @@ begin
 end;
 $$;
 
+create or replace function public.get_admin_event_timeline(start_date date default null, end_date date default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  from_date date := coalesce(start_date, current_date - 29);
+  to_date date := coalesce(end_date, current_date);
+  result jsonb;
+begin
+  perform public.require_admin_user();
+
+  if from_date > to_date then
+    raise exception 'start_date must be before or equal to end_date';
+  end if;
+
+  select jsonb_build_object(
+    'start_date', from_date,
+    'end_date', to_date,
+    'events', coalesce(jsonb_agg(jsonb_build_object(
+      'id', id,
+      'user_id', user_id,
+      'username', public.analytics_display_username(user_id),
+      'event_name', event_name,
+      'event_time_ms', event_time_ms,
+      'local_date', local_date,
+      'session_id', session_id,
+      'page', page,
+      'source', source,
+      'record_type', record_type,
+      'record_id', record_id,
+      'metadata', metadata,
+      'app_version', app_version,
+      'created_at', created_at
+    ) order by event_time_ms desc, created_at desc), '[]'::jsonb)
+  )
+  into result
+  from (
+    select *
+    from public.analytics_events
+    where local_date between from_date and to_date
+    order by event_time_ms desc, created_at desc
+    limit 500
+  ) event_rows;
+
+  return result;
+end;
+$$;
+
 create or replace function public.get_admin_user_event_timeline(user_id uuid, start_date date default null, end_date date default null)
 returns jsonb
 language plpgsql
@@ -987,6 +1038,7 @@ begin
     'end_date', to_date,
     'events', coalesce(jsonb_agg(jsonb_build_object(
       'id', id,
+      'user_id', target_user_id,
       'username', public.analytics_display_username(target_user_id),
       'event_name', event_name,
       'event_time_ms', event_time_ms,
@@ -1207,6 +1259,57 @@ begin
 end;
 $$;
 
+create or replace function public.get_admin_sessions(start_date date default null, end_date date default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  from_date date := coalesce(start_date, current_date - 29);
+  to_date date := coalesce(end_date, current_date);
+  result jsonb;
+begin
+  perform public.require_admin_user();
+
+  if from_date > to_date then
+    raise exception 'start_date must be before or equal to end_date';
+  end if;
+
+  select jsonb_build_object(
+    'start_date', from_date,
+    'end_date', to_date,
+    'sessions', coalesce(jsonb_agg(jsonb_build_object(
+      'id', id,
+      'user_id', user_id,
+      'username', public.analytics_display_username(user_id),
+      'started_at_ms', started_at_ms,
+      'ended_at_ms', ended_at_ms,
+      'duration_ms', duration_ms,
+      'active_duration_ms', active_duration_ms,
+      'idle_duration_ms', idle_duration_ms,
+      'page_count', page_count,
+      'event_count', event_count,
+      'record_count', record_count,
+      'completed_record_count', completed_record_count,
+      'metadata', metadata,
+      'created_at', created_at
+    ) order by started_at_ms desc, created_at desc), '[]'::jsonb)
+  )
+  into result
+  from (
+    select *
+    from public.learning_sessions
+    where public.analytics_ms_to_utc_date(started_at_ms) between from_date and to_date
+    order by started_at_ms desc, created_at desc
+    limit 500
+  ) session_rows;
+
+  return result;
+end;
+$$;
+
 create or replace function public.get_admin_user_sessions(user_id uuid, start_date date default null, end_date date default null)
 returns jsonb
 language plpgsql
@@ -1269,6 +1372,7 @@ begin
     'sessions', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', id,
+        'user_id', target_user_id,
         'username', public.analytics_display_username(target_user_id),
         'started_at_ms', started_at_ms,
         'ended_at_ms', ended_at_ms,
@@ -1307,10 +1411,12 @@ revoke execute on function public.get_admin_event_overview(date, date) from publ
 revoke execute on function public.get_admin_feature_usage(date, date) from public;
 revoke execute on function public.get_admin_behavior_funnel(date, date) from public;
 revoke execute on function public.get_admin_error_events(date, date) from public;
+revoke execute on function public.get_admin_event_timeline(date, date) from public;
 revoke execute on function public.get_admin_user_event_timeline(uuid, date, date) from public;
 revoke execute on function public.get_admin_session_overview(date, date) from public;
 revoke execute on function public.get_admin_session_trend(date, date) from public;
 revoke execute on function public.get_admin_active_time_heatmap(date, date) from public;
+revoke execute on function public.get_admin_sessions(date, date) from public;
 revoke execute on function public.get_admin_user_sessions(uuid, date, date) from public;
 
 grant execute on function public.is_admin_user() to authenticated;
@@ -1322,8 +1428,10 @@ grant execute on function public.get_admin_event_overview(date, date) to authent
 grant execute on function public.get_admin_feature_usage(date, date) to authenticated;
 grant execute on function public.get_admin_behavior_funnel(date, date) to authenticated;
 grant execute on function public.get_admin_error_events(date, date) to authenticated;
+grant execute on function public.get_admin_event_timeline(date, date) to authenticated;
 grant execute on function public.get_admin_user_event_timeline(uuid, date, date) to authenticated;
 grant execute on function public.get_admin_session_overview(date, date) to authenticated;
 grant execute on function public.get_admin_session_trend(date, date) to authenticated;
 grant execute on function public.get_admin_active_time_heatmap(date, date) to authenticated;
+grant execute on function public.get_admin_sessions(date, date) to authenticated;
 grant execute on function public.get_admin_user_sessions(uuid, date, date) to authenticated;

@@ -212,6 +212,8 @@ export function AdminAnalytics() {
     return null;
   }, [bundle, userId]);
 
+  const isUserDetail = Boolean(userId);
+
   const userListSummary = useMemo(() => {
     return filteredUsers.reduce(
       (summary, user) => ({
@@ -222,6 +224,52 @@ export function AdminAnalytics() {
       { activeUsers: 0, totalRecords: 0, totalQuestions: 0 },
     );
   }, [filteredUsers]);
+
+  const eventScopeOverview = useMemo(() => {
+    const empty = { eventCount: 0, pageViews: 0, recordMutations: 0, syncFailures: 0, errorEvents: 0, activeEventUsers: 0 };
+    if (!bundle) return empty;
+    if (!isUserDetail) return bundle.eventOverview;
+
+    const events = bundle.timeline;
+    const hasError = (metadata?: Record<string, unknown>) => Boolean(metadata?.error || metadata?.errorMessage);
+    const eventCount = Math.max(selectedUser?.eventCount ?? 0, events.length);
+    return {
+      eventCount,
+      pageViews: events.filter(item => item.eventName === 'page_view').length,
+      recordMutations: events.filter(item => item.eventName.startsWith('record_')).length,
+      syncFailures: events.filter(item => item.eventName === 'sync_failed').length,
+      errorEvents: events.filter(item => item.eventName === 'error' || item.eventName === 'sync_failed' || hasError(item.metadata)).length,
+      activeEventUsers: events.length > 0 ? 1 : 0,
+    };
+  }, [bundle, isUserDetail, selectedUser]);
+
+  const sessionScopeOverview = useMemo(() => {
+    if (!bundle || !isUserDetail) return bundle?.sessionOverview ?? {
+      sessionCount: 0,
+      activeUsers: 0,
+      averageDurationMs: 0,
+      averageActiveDurationMs: 0,
+      totalActiveDurationMs: 0,
+      averageEventsPerSession: 0,
+      averageRecordsPerSession: 0,
+    };
+
+    const sessions = bundle.sessions;
+    const totalActiveDurationMs = sessions.reduce((sum, session) => sum + session.activeDurationMs, 0);
+    const totalDurationMs = sessions.reduce((sum, session) => sum + session.durationMs, 0);
+    const totalEvents = sessions.reduce((sum, session) => sum + session.eventCount, 0);
+    const totalRecords = sessions.reduce((sum, session) => sum + session.recordCount, 0);
+    const sessionCount = Math.max(selectedUser?.sessionCount ?? 0, sessions.length);
+    return {
+      sessionCount,
+      activeUsers: sessions.length > 0 ? 1 : 0,
+      averageDurationMs: sessions.length > 0 ? totalDurationMs / sessions.length : 0,
+      averageActiveDurationMs: sessions.length > 0 ? totalActiveDurationMs / sessions.length : 0,
+      totalActiveDurationMs,
+      averageEventsPerSession: sessions.length > 0 ? totalEvents / sessions.length : 0,
+      averageRecordsPerSession: sessions.length > 0 ? totalRecords / sessions.length : 0,
+    };
+  }, [bundle, isUserDetail, selectedUser]);
 
   const maxHeatmapValue = useMemo(
     () => Math.max(0, ...(bundle?.heatmap.map(cell => cell.activeDurationMs) || [])),
@@ -653,71 +701,78 @@ export function AdminAnalytics() {
       {activeTab === 'events' && bundle && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="行为事件数" value={numberText(bundle.eventOverview.eventCount)} icon={BarChart3} />
-            <MetricCard label="页面访问" value={numberText(bundle.eventOverview.pageViews)} icon={FileSpreadsheet} />
-            <MetricCard label="记录操作" value={numberText(bundle.eventOverview.recordMutations)} icon={Filter} />
-            <MetricCard label="同步失败" value={numberText(bundle.eventOverview.syncFailures)} icon={AlertTriangle} />
-            <MetricCard label="错误事件" value={numberText(bundle.eventOverview.errorEvents)} icon={ShieldAlert} />
+            <MetricCard label={isUserDetail ? '该用户行为数' : '全体行为事件数'} value={numberText(eventScopeOverview.eventCount)} icon={BarChart3} />
+            <MetricCard label={isUserDetail ? '该用户页面访问' : '全体页面访问'} value={numberText(eventScopeOverview.pageViews)} icon={FileSpreadsheet} />
+            <MetricCard label={isUserDetail ? '该用户记录操作' : '全体记录操作'} value={numberText(eventScopeOverview.recordMutations)} icon={Filter} />
+            <MetricCard label={isUserDetail ? '该用户同步失败' : '全体同步失败'} value={numberText(eventScopeOverview.syncFailures)} icon={AlertTriangle} />
+            <MetricCard label={isUserDetail ? '该用户错误事件' : '全体错误事件'} value={numberText(eventScopeOverview.errorEvents)} icon={ShieldAlert} />
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">功能使用频率</h2>
-              {bundle.featureUsage.length > 0 ? (
-                <div className="mt-5 h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
-                    <BarChart data={bundle.featureUsage.slice(0, 10)} layout="vertical" margin={{ left: 40, right: 16 }}>
-                      <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 12, fill: '#64748B' }} />
-                      <YAxis type="category" dataKey="name" width={92} tick={{ fontSize: 12, fill: '#64748B' }} />
-                      <Tooltip />
-                      <Bar dataKey="count" name="次数" fill="#337a7a" radius={[0, 6, 6, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+          {!isUserDetail && (
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-900">全体功能使用频率</h2>
+                {bundle.featureUsage.length > 0 ? (
+                  <div className="mt-5 h-[320px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
+                      <BarChart data={bundle.featureUsage.slice(0, 10)} layout="vertical" margin={{ left: 40, right: 16 }}>
+                        <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 12, fill: '#64748B' }} />
+                        <YAxis type="category" dataKey="name" width={92} tick={{ fontSize: 12, fill: '#64748B' }} />
+                        <Tooltip />
+                        <Bar dataKey="count" name="次数" fill="#337a7a" radius={[0, 6, 6, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <EmptyState text="暂无行为事件数据" />
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-900">全体行为漏斗</h2>
+                <div className="mt-5 space-y-4">
+                  {bundle.funnel.map(step => (
+                    <div key={step.step}>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-semibold text-slate-700">{step.step}</span>
+                        <span className="font-mono text-slate-500">{step.users} 用户 · {formatPercent(step.conversionRate)}</span>
+                      </div>
+                      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-indigo-600" style={{ width: `${Math.max(3, step.conversionRate)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                  {bundle.funnel.length === 0 && <EmptyState text="暂无漏斗数据" />}
                 </div>
-              ) : (
-                <EmptyState text="暂无行为事件数据" />
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">行为漏斗</h2>
-              <div className="mt-5 space-y-4">
-                {bundle.funnel.map(step => (
-                  <div key={step.step}>
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="font-semibold text-slate-700">{step.step}</span>
-                      <span className="font-mono text-slate-500">{step.users} 用户 · {formatPercent(step.conversionRate)}</span>
-                    </div>
-                    <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-indigo-600" style={{ width: `${Math.max(3, step.conversionRate)}%` }} />
-                    </div>
-                  </div>
-                ))}
-                {bundle.funnel.length === 0 && <EmptyState text="暂无漏斗数据" />}
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">近期错误事件</h2>
-              <div className="mt-5 space-y-3">
-                {bundle.errors.slice(0, 8).map(item => (
-                  <div key={item.id} className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-semibold text-red-700">{item.message}</p>
-                      <span className="shrink-0 text-xs text-red-500">{formatDateTime(item.eventTimeMs)}</span>
+          <div className={`grid grid-cols-1 gap-6 ${isUserDetail ? '' : 'xl:grid-cols-2'}`}>
+            {!isUserDetail && (
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-900">全体近期错误事件</h2>
+                <div className="mt-5 space-y-3">
+                  {bundle.errors.slice(0, 8).map(item => (
+                    <div key={item.id} className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="font-semibold text-red-700">{item.message}</p>
+                        <span className="shrink-0 text-xs text-red-500">{formatDateTime(item.eventTimeMs)}</span>
+                      </div>
+                      <p className="mt-2 text-red-500">{getAdminPageLabel(item.page)} · {item.username}</p>
                     </div>
-                    <p className="mt-2 text-red-500">{getAdminPageLabel(item.page)} · {item.username}</p>
-                  </div>
-                ))}
-                {bundle.errors.length === 0 && <EmptyState text="暂无错误事件" />}
+                  ))}
+                  {bundle.errors.length === 0 && <EmptyState text="暂无错误事件" />}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">用户行为时间线</h2>
+              <h2 className="text-lg font-bold text-slate-900">{isUserDetail ? '该用户行为时间线' : '全体用户行为时间线'}</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {isUserDetail ? '仅展示当前用户的操作，不混入全体用户聚合数据。' : '按时间倒序汇总所有用户的操作，每条记录都会标注用户名。'}
+              </p>
               <div className="mt-5 max-h-[440px] space-y-3 overflow-y-auto pr-1">
                 {bundle.timeline.slice(0, 30).map(item => (
                   <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
@@ -726,12 +781,13 @@ export function AdminAnalytics() {
                       <span className="shrink-0 text-xs text-slate-500">{formatDateTime(item.eventTimeMs)}</span>
                     </div>
                     <p className="mt-2 text-slate-500">
+                      {!isUserDetail && <span className="font-semibold text-slate-700">{item.username} · </span>}
                       {getAdminPageLabel(item.page)}
                       {item.recordType ? ` · ${getAdminRecordTypeLabel(item.recordType)}` : ''}
                     </p>
                   </div>
                 ))}
-                {bundle.timeline.length === 0 && <EmptyState text="暂无用户时间线数据" />}
+                {bundle.timeline.length === 0 && <EmptyState text={isUserDetail ? '暂无该用户时间线数据' : '暂无全体用户时间线数据'} />}
               </div>
             </div>
           </div>
@@ -741,15 +797,20 @@ export function AdminAnalytics() {
       {activeTab === 'sessions' && bundle && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="会话次数" value={numberText(bundle.sessionOverview.sessionCount)} icon={Clock} />
-            <MetricCard label="会话用户数" value={numberText(bundle.sessionOverview.activeUsers)} icon={UsersRound} />
-            <MetricCard label="平均有效时长" value={formatDuration(bundle.sessionOverview.averageActiveDurationMs)} icon={Timer} />
-            <MetricCard label="总有效时长" value={formatDuration(bundle.sessionOverview.totalActiveDurationMs)} icon={Timer} />
+            <MetricCard label={isUserDetail ? '该用户会话次数' : '全体会话次数'} value={numberText(sessionScopeOverview.sessionCount)} icon={Clock} />
+            <MetricCard
+              label={isUserDetail ? '该用户会话状态' : '全体会话用户数'}
+              value={isUserDetail ? (sessionScopeOverview.sessionCount > 0 ? '有会话' : '无会话') : numberText(sessionScopeOverview.activeUsers)}
+              icon={UsersRound}
+            />
+            <MetricCard label={isUserDetail ? '该用户平均有效时长' : '全体平均有效时长'} value={formatDuration(sessionScopeOverview.averageActiveDurationMs)} icon={Timer} />
+            <MetricCard label={isUserDetail ? '该用户总有效时长' : '全体总有效时长'} value={formatDuration(sessionScopeOverview.totalActiveDurationMs)} icon={Timer} />
           </div>
 
+          {!isUserDetail && (
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">会话有效时长趋势</h2>
+              <h2 className="text-lg font-bold text-slate-900">全体会话有效时长趋势</h2>
               {bundle.sessionTrend.length > 0 ? (
                 <div className="mt-5 h-[300px]">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={CHART_INITIAL_DIMENSION}>
@@ -769,7 +830,7 @@ export function AdminAnalytics() {
             </div>
 
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-900">活跃时段热力图</h2>
+              <h2 className="text-lg font-bold text-slate-900">全体活跃时段热力图</h2>
               <div className="mt-5 grid grid-cols-6 gap-1.5">
                 {bundle.heatmap.filter(cell => cell.hour % 4 === 0).map(cell => (
                   <div
@@ -784,13 +845,15 @@ export function AdminAnalytics() {
               </div>
             </div>
           </div>
+          )}
 
           <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900">用户会话记录</h2>
+            <h2 className="text-lg font-bold text-slate-900">{isUserDetail ? '该用户会话记录' : '全体用户会话记录'}</h2>
             <div className="mt-5 overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <tr>
+                    {!isUserDetail && <th className="px-3 py-3">用户</th>}
                     <th className="px-3 py-3">开始时间</th>
                     <th className="px-3 py-3">结束时间</th>
                     <th className="px-3 py-3 text-right">有效时长</th>
@@ -802,6 +865,7 @@ export function AdminAnalytics() {
                 <tbody className="divide-y divide-slate-50">
                   {bundle.sessions.map(session => (
                     <tr key={session.id}>
+                      {!isUserDetail && <td className="px-3 py-3 font-semibold text-slate-700">{session.username}</td>}
                       <td className="px-3 py-3 text-slate-700">{formatDateTime(session.startedAtMs)}</td>
                       <td className="px-3 py-3 text-slate-500">{formatDateTime(session.endedAtMs)}</td>
                       <td className="px-3 py-3 text-right font-semibold text-slate-900">{formatDuration(session.activeDurationMs)}</td>
@@ -812,7 +876,7 @@ export function AdminAnalytics() {
                   ))}
                 </tbody>
               </table>
-              {bundle.sessions.length === 0 && <div className="mt-4"><EmptyState text="暂无用户会话记录" /></div>}
+              {bundle.sessions.length === 0 && <div className="mt-4"><EmptyState text={isUserDetail ? '暂无该用户会话记录' : '暂无全体用户会话记录'} /></div>}
             </div>
           </div>
         </div>
