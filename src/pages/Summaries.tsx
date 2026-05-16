@@ -93,6 +93,9 @@ export function Summaries() {
     setCurrentDate(d);
   };
 
+  const getAccuracy = (correctQuestions: number, totalQuestions: number) =>
+    totalQuestions > 0 ? Math.round((correctQuestions / totalQuestions) * 100) : 0;
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
@@ -232,7 +235,7 @@ export function Summaries() {
                       <span className="text-slate-500 flex items-center">
                         {e.correctQuestions}/{e.totalQuestions}题 
                         <span className="ml-3 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-xs font-bold font-mono">
-                          {Math.round((e.correctQuestions / e.totalQuestions) * 100)}%
+                          {getAccuracy(e.correctQuestions, e.totalQuestions)}%
                         </span>
                       </span>
                     </li>
