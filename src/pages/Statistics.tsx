@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { MATERIAL_CATEGORIES, QUESTION_TYPES } from '../types';
 import { subDays } from 'date-fns';
+import { normalizeDateRange } from '../lib/utils';
 import {
   Bar,
   BarChart,
@@ -26,6 +27,10 @@ export function Statistics() {
   const [dateRange, setDateRange] = useState<DateRange>('month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const customDateRange = useMemo(
+    () => normalizeDateRange(customStart, customEnd),
+    [customEnd, customStart],
+  );
 
   const filteredData = useMemo(() => {
     let startStr = '1970-01-01';
@@ -46,8 +51,8 @@ export function Statistics() {
       startStr = formatDateObj(subDays(now, 30));
       endStr = formatDateObj(now);
     } else if (dateRange === 'custom') {
-      startStr = customStart || '1970-01-01';
-      endStr = customEnd || '2099-12-31';
+      startStr = customDateRange.startDate || '1970-01-01';
+      endStr = customDateRange.endDate || '2099-12-31';
     }
 
     const isMatch = (dateStr: string) => dateStr >= startStr && dateStr <= endStr;
@@ -56,7 +61,7 @@ export function Statistics() {
       exercises: exercises.filter(record => record.userId === currentUser?.id && !record.deletedAt && isMatch(record.date)),
       materials: materials.filter(record => record.userId === currentUser?.id && !record.deletedAt && isMatch(record.date)),
     };
-  }, [customEnd, customStart, currentUser?.id, dateRange, exercises, materials]);
+  }, [customDateRange.endDate, customDateRange.startDate, currentUser?.id, dateRange, exercises, materials]);
 
   const volumeData = useMemo(() => {
     let allTotal = 0;
@@ -149,6 +154,12 @@ export function Statistics() {
           )}
         </div>
       </div>
+
+      {dateRange === 'custom' && customDateRange.wasReversed && (
+        <p className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+          已按较早日期到较晚日期自动统计。
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className={chartCardClass}>

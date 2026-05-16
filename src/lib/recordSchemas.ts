@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { MATERIAL_CATEGORIES, QUESTION_TYPES, type MaterialCategory, type QuestionType } from '../types';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-const timeSpentPattern = /^\d{1,3}:\d{2}(?::\d{2})?$/;
+const daysByMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 const numberInputSchema = (label: string) =>
   z.union([z.string(), z.number()]).transform((value, ctx) => {
@@ -40,8 +40,28 @@ const numberInputSchema = (label: string) =>
 const validDateString = (value: string) => {
   if (!datePattern.test(value)) return false;
 
-  const date = new Date(`${value}T00:00:00`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  const [year, month, day] = value.split('-').map(Number);
+  if (year < 1 || month < 1 || month > 12) return false;
+
+  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const maxDay = month === 2 && isLeapYear ? 29 : daysByMonth[month - 1];
+  return day >= 1 && day <= maxDay;
+};
+
+const validDurationString = (value: string) => {
+  const parts = value.split(':');
+  if (parts.length !== 2 && parts.length !== 3) return false;
+  if (!parts.every(part => /^\d{1,3}$/.test(part))) return false;
+
+  const values = parts.map(Number);
+  const [first, second, third] = values;
+  if (first < 0) return false;
+
+  if (parts.length === 2) {
+    return second >= 0 && second < 60;
+  }
+
+  return second >= 0 && second < 60 && third >= 0 && third < 60;
 };
 
 const questionTypeSchema = z
@@ -76,7 +96,7 @@ export const exerciseInputSchema = z
     timeSpent: z
       .string()
       .trim()
-      .refine(value => value === '' || timeSpentPattern.test(value), '用时格式必须为 mm:ss 或 hh:mm:ss'),
+      .refine(value => value === '' || validDurationString(value), '用时格式必须为 mm:ss 或 hh:mm:ss，分秒需小于 60'),
   })
   .superRefine((value, ctx) => {
     if (value.correctQuestions > value.totalQuestions) {

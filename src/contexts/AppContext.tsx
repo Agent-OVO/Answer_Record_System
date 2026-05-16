@@ -314,7 +314,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const tracker = createAnalyticsTracker({
       userId: currentUser.id,
-      appVersion: '0.0.0',
+      appVersion: '0.1.0',
       getPage: () => window.location.hash.replace(/^#/, '') || '/',
     });
     analyticsTrackerRef.current = tracker;
@@ -759,6 +759,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     writeAccounts(currentAccounts.filter(account => account.username !== username));
     setAccounts(getAccountSummaries());
+    setExercises(prev => prev.filter(record => record.userId !== username));
+    setMaterials(prev => prev.filter(record => record.userId !== username));
+    setSummaries(prev => prev.filter(record => record.userId !== username));
     return { success: true };
   };
 
