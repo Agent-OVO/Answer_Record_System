@@ -759,6 +759,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     writeAccounts(currentAccounts.filter(account => account.username !== username));
     setAccounts(getAccountSummaries());
+    setExercises(prev => prev.filter(record => record.userId !== username));
+    setMaterials(prev => prev.filter(record => record.userId !== username));
+    setSummaries(prev => prev.filter(record => record.userId !== username));
     return { success: true };
   };
 

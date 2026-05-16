@@ -67,7 +67,7 @@ export function Accounts() {
   };
 
   const handleDeleteAccount = (targetUsername: string) => {
-    if (!confirm(`确定移除账号「${targetUsername}」吗？`)) return;
+    if (!confirm(`确定移除账号「${targetUsername}」吗？该账号的本地学习记录也会一并删除。`)) return;
 
     const result = deleteAccount(targetUsername);
     if (!result.success) {
