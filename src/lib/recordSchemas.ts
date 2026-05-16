@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { MATERIAL_CATEGORIES, QUESTION_TYPES, type MaterialCategory, type QuestionType } from '../types';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const looseDatePattern = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/;
 const daysByMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 const numberInputSchema = (label: string) =>
@@ -48,6 +49,14 @@ const validDateString = (value: string) => {
   return day >= 1 && day <= maxDay;
 };
 
+const normalizeDateString = (value: string) => {
+  const match = value.match(looseDatePattern);
+  if (!match) return value;
+
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
+
 const validDurationString = (value: string) => {
   const parts = value.split(':');
   if (parts.length !== 2 && parts.length !== 3) return false;
@@ -85,6 +94,7 @@ export const dateStringSchema = z
   .string()
   .trim()
   .min(1, '请输入日期')
+  .transform(normalizeDateString)
   .refine(validDateString, '日期格式必须为 YYYY-MM-DD');
 
 export const exerciseInputSchema = z

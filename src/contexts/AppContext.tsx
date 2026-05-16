@@ -314,7 +314,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const tracker = createAnalyticsTracker({
       userId: currentUser.id,
-      appVersion: '0.1.0',
+      appVersion: '0.1.1',
       getPage: () => window.location.hash.replace(/^#/, '') || '/',
     });
     analyticsTrackerRef.current = tracker;
