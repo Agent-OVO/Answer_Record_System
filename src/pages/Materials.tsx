@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
 import { formatDate } from '../lib/utils';
 import { Modal } from '../components/ui/Modal';
@@ -115,6 +115,16 @@ export function Materials() {
         return 0;
       }),
   [materials, currentUser?.id, filterCategories, filterStartDate, filterEndDate, searchQuery, sortBy]);
+
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+
+      const visibleIds = new Set(myMaterials.map(material => material.id));
+      const next = new Set([...prev].filter(id => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [myMaterials]);
 
   const toggleCategoryFilter = (cat: string) => {
     const next = new Set(filterCategories);
@@ -351,7 +361,7 @@ export function Materials() {
               key={mat.id} 
               className={`bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border p-6 transition-all relative group cursor-default ${
                 isUpdated ? 'border-emerald-400 ring-2 ring-emerald-400 bg-emerald-50/30' : 
-                isSelected ? `${theme.activeRing} ${viewMode === 'grid' ? theme.gridBorder : theme.listBorder}` : `${viewMode === 'grid' ? theme.gridBorder : theme.listBorder} ${theme.hover}`
+                isSelected ? `${theme.active} ${viewMode === 'grid' ? theme.gridBorder : theme.listBorder}` : `${viewMode === 'grid' ? theme.gridBorder : theme.listBorder} ${theme.hover}`
               } ${viewMode === 'list' ? 'flex flex-row items-center gap-6 p-4' : ''}`}
             >
               <div className={viewMode === 'grid' ? "absolute top-6 right-6" : "flex flex-shrink-0 items-center justify-center pl-2"}>
