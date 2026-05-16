@@ -71,7 +71,10 @@ const normalizeDateCell = (value: unknown) => {
   }
 
   if (typeof value === 'string') {
-    return value.trim().replace(/[/.]/g, '-');
+    const normalized = value.trim().replace(/[/.]/g, '-');
+    const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (match) return formatDateParts(Number(match[1]), Number(match[2]), Number(match[3]));
+    return normalized;
   }
 
   return String(value ?? '').trim();
@@ -81,6 +84,8 @@ const normalizeTimeCell = (value: unknown) => {
   if (value === null || value === undefined || value === '') return '';
 
   if (typeof value === 'number') {
+    if (value < 0 || value >= 1) return String(value);
+
     const totalSeconds = Math.round(value * 24 * 60 * 60);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);

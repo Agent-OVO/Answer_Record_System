@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 process.env.TZ = 'Asia/Shanghai';
 
-const { dateStringSchema, materialInputSchema } = await import('../src/lib/recordSchemas.ts');
+const { dateStringSchema, exerciseInputSchema, materialInputSchema } = await import('../src/lib/recordSchemas.ts');
 
 const validDate = '2026-05-16';
 
@@ -21,5 +21,20 @@ assert.equal(dateStringSchema.safeParse('2025-02-29').success, false);
 assert.equal(dateStringSchema.safeParse('2026-13-01').success, false);
 assert.equal(dateStringSchema.safeParse('2026-00-10').success, false);
 assert.equal(dateStringSchema.safeParse('2026-05-00').success, false);
+
+const validExercise = {
+  date: validDate,
+  type: '政治理论',
+  totalQuestions: 10,
+  correctQuestions: 8,
+};
+
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '59:59' }).success, true);
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '60:00' }).success, true);
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '1:02:03' }).success, true);
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '1:99' }).success, false);
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '12:60' }).success, false);
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '1:02:60' }).success, false);
+assert.equal(exerciseInputSchema.safeParse({ ...validExercise, timeSpent: '1000:00' }).success, false);
 
 console.log('recordSchemas tests passed');
