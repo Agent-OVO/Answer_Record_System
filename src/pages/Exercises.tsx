@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { formatDate } from '../lib/utils';
+import { formatDate, normalizeDateRange } from '../lib/utils';
 import { Modal } from '../components/ui/Modal';
 import { QUESTION_TYPES, type ExerciseRecord, type QuestionType } from '../types';
 import { Activity, CheckCircle, Clock, Edit2, Plus, Trash2 } from 'lucide-react';
@@ -24,16 +24,20 @@ export function Exercises() {
   const [correctQ, setCorrectQ] = useState<number | string>('');
   const [timeSpent, setTimeSpent] = useState('');
   const [formError, setFormError] = useState('');
+  const filterDateRange = useMemo(
+    () => normalizeDateRange(filterStartDate, filterEndDate),
+    [filterEndDate, filterStartDate],
+  );
 
   const myExercises = useMemo(
     () =>
       exercises
         .filter((exercise) => exercise.userId === currentUser?.id && !exercise.deletedAt)
         .filter((exercise) => (filterType === 'All' ? true : exercise.type === filterType))
-        .filter((exercise) => (filterStartDate ? exercise.date >= filterStartDate : true))
-        .filter((exercise) => (filterEndDate ? exercise.date <= filterEndDate : true))
+        .filter((exercise) => (filterDateRange.startDate ? exercise.date >= filterDateRange.startDate : true))
+        .filter((exercise) => (filterDateRange.endDate ? exercise.date <= filterDateRange.endDate : true))
         .sort((a, b) => b.createdAt - a.createdAt),
-    [currentUser?.id, exercises, filterEndDate, filterStartDate, filterType],
+    [currentUser?.id, exercises, filterDateRange.endDate, filterDateRange.startDate, filterType],
   );
 
   const summaryStats = useMemo(() => {
@@ -218,6 +222,12 @@ export function Exercises() {
               />
             </div>
           </div>
+
+          {filterDateRange.wasReversed && (
+            <p className="w-full text-sm font-medium text-amber-600">
+              已按较早日期到较晚日期自动筛选。
+            </p>
+          )}
         </div>
       </div>
 

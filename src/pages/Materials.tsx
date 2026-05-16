@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { formatDate } from '../lib/utils';
+import { formatDate, normalizeDateRange } from '../lib/utils';
 import { Modal } from '../components/ui/Modal';
 import { MATERIAL_CATEGORIES, type MaterialCategory, type MaterialRecord } from '../types';
 import { Plus, Edit2, Trash2, Search, Library, LayoutGrid, List } from 'lucide-react';
@@ -97,12 +97,16 @@ export function Materials() {
   const [category, setCategory] = useState<MaterialCategory>('经济');
   const [summary, setSummary] = useState('');
   const [formError, setFormError] = useState('');
+  const filterDateRange = useMemo(
+    () => normalizeDateRange(filterStartDate, filterEndDate),
+    [filterEndDate, filterStartDate],
+  );
 
   const myMaterials = useMemo(() => 
     materials.filter(m => m.userId === currentUser?.id && !m.deletedAt)
       .filter(m => filterCategories.size === 0 ? true : filterCategories.has(m.category))
-      .filter(m => filterStartDate ? m.date >= filterStartDate : true)
-      .filter(m => filterEndDate ? m.date <= filterEndDate : true)
+      .filter(m => filterDateRange.startDate ? m.date >= filterDateRange.startDate : true)
+      .filter(m => filterDateRange.endDate ? m.date <= filterDateRange.endDate : true)
       .filter(m => {
         if (!searchQuery.trim()) return true;
         return m.summary.toLowerCase().includes(searchQuery.trim().toLowerCase());
@@ -114,7 +118,7 @@ export function Materials() {
         if (sortBy === 'summary-desc') return b.summary.localeCompare(a.summary);
         return 0;
       }),
-  [materials, currentUser?.id, filterCategories, filterStartDate, filterEndDate, searchQuery, sortBy]);
+  [materials, currentUser?.id, filterCategories, filterDateRange.startDate, filterDateRange.endDate, searchQuery, sortBy]);
 
   useEffect(() => {
     setSelectedIds(prev => {
@@ -324,6 +328,11 @@ export function Materials() {
                 className="bg-slate-50 border border-slate-100 rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-indigo-500 shadow-none outline-none"
               />
             </div>
+            {filterDateRange.wasReversed && (
+              <p className="text-sm font-medium text-amber-600">
+                已按较早日期到较晚日期自动筛选。
+              </p>
+            )}
           </div>
         </div>
       </div>

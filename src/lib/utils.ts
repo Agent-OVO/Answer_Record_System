@@ -17,3 +17,19 @@ export function formatDate(date: Date) {
   const dd = String(date.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
+
+export function normalizeDateRange(startDate: string, endDate: string) {
+  if (startDate && endDate && startDate > endDate) {
+    return {
+      startDate: endDate,
+      endDate: startDate,
+      wasReversed: true,
+    };
+  }
+
+  return {
+    startDate,
+    endDate,
+    wasReversed: false,
+  };
+}
